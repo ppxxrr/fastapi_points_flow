@@ -1,0 +1,8 @@
+fastapi发布命令
+
+cd /opt/fastapi_points_flow
+source .venv/bin/activate
+pip install -r requirements.txt
+sudo systemctl restart myfastapi
+sudo systemctl status myfastapi
+journalctl -u myfastapi -n 50 --no-pager

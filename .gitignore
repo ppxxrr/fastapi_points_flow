@@ -1,0 +1,17 @@
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+data/exports/*
+!data/exports/.gitkeep
+
+.env
+.env.*
+
+ppxxrr
+ppxxrr.pub
+
+*.rar
+ls
