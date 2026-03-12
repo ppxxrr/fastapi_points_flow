@@ -1,6 +1,7 @@
 import { type FormEvent, useState } from "react";
 
 import { useAuth } from "../auth/AuthContext";
+import LoginBackground from "../components/LoginBackground";
 
 
 function FieldIcon({ kind }: { kind: "user" | "lock" }) {
@@ -48,81 +49,80 @@ export default function LoginPage() {
     }
 
     return (
-        <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_top_left,_rgba(103,168,255,0.16),_transparent_30%),radial-gradient(circle_at_82%_18%,_rgba(129,140,248,0.15),_transparent_26%),linear-gradient(180deg,_#fbfdff_0%,_#eef4ff_100%)] px-6 py-8">
-            <div className="pointer-events-none absolute -left-24 top-8 h-[23rem] w-[23rem] rounded-full border-[24px] border-sky-300/28 blur-[2px]" />
-            <div className="pointer-events-none absolute right-[-130px] top-[-40px] h-[28rem] w-[28rem] rounded-full border-[50px] border-violet-300/16 blur-[3px]" />
-            <div className="pointer-events-none absolute bottom-[-140px] left-[-90px] h-[22rem] w-[22rem] rounded-full bg-gradient-to-br from-sky-200/42 to-violet-200/22 blur-3xl" />
-            <div className="pointer-events-none absolute bottom-[-120px] right-[-60px] h-[18rem] w-[18rem] rounded-full bg-gradient-to-br from-blue-300/22 to-violet-300/18 blur-3xl" />
-            <div className="pointer-events-none absolute left-1/4 top-[34%] h-20 w-20 rounded-full bg-sky-300/20 blur-2xl" />
-            <div className="pointer-events-none absolute right-[18%] top-[19%] h-10 w-10 rounded-full bg-violet-400/25 blur-md" />
+        <div className="relative flex min-h-screen items-center justify-center overflow-hidden px-6 py-8">
+            <LoginBackground />
 
-            <div className="relative w-full max-w-[27rem] rounded-[2rem] border border-white/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.9),rgba(246,249,255,0.78))] px-8 py-7 shadow-[0_34px_100px_rgba(71,93,160,0.16)] backdrop-blur-[24px]">
-                <div className="pointer-events-none absolute inset-0 rounded-[2rem] bg-[radial-gradient(circle_at_top_right,_rgba(129,140,248,0.12),_transparent_28%),radial-gradient(circle_at_bottom_left,_rgba(56,189,248,0.07),_transparent_28%)]" />
+            <div className="relative">
+                <div className="pointer-events-none absolute inset-x-10 inset-y-8 rounded-[2.2rem] bg-[radial-gradient(circle,rgba(96,165,250,0.22),rgba(129,140,248,0.08),transparent_68%)] blur-2xl" />
 
-                <div className="relative mb-6 flex flex-col items-center text-center">
-                    <BrandMark />
-                    <div className="mt-4 inline-flex items-center rounded-full border border-blue-100 bg-white/85 px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.24em] text-blue-600 shadow-[0_8px_20px_rgba(129,140,248,0.1)]">
-                        Smart Workbench
+                <div className="relative w-full max-w-[27rem] rounded-[2rem] border border-white/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.9),rgba(246,249,255,0.78))] px-8 py-7 shadow-[0_34px_100px_rgba(71,93,160,0.16)] backdrop-blur-[24px]">
+                    <div className="pointer-events-none absolute inset-0 rounded-[2rem] bg-[radial-gradient(circle_at_top_right,_rgba(129,140,248,0.12),_transparent_28%),radial-gradient(circle_at_bottom_left,_rgba(56,189,248,0.07),_transparent_28%)]" />
+
+                    <div className="relative mb-6 flex flex-col items-center text-center">
+                        <BrandMark />
+                        <div className="mt-4 inline-flex items-center rounded-full border border-blue-100 bg-white/85 px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.24em] text-blue-600 shadow-[0_8px_20px_rgba(129,140,248,0.1)]">
+                            Smart Workbench
+                        </div>
+                        <h1 className="mt-4 text-[2rem] font-semibold tracking-[-0.05em] text-slate-950">
+                            智能工作台
+                        </h1>
                     </div>
-                    <h1 className="mt-4 text-[2rem] font-semibold tracking-[-0.05em] text-slate-950">
-                        智能工作台
-                    </h1>
+
+                    <form className="relative space-y-4" onSubmit={handleSubmit}>
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium text-slate-800">账号</label>
+                            <div className="relative">
+                                <div className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2">
+                                    <FieldIcon kind="user" />
+                                </div>
+                                <input
+                                    className="h-11 w-full rounded-[1.05rem] border border-slate-200/80 bg-white/90 pl-11 pr-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                                    placeholder="请输入账号"
+                                    value={username}
+                                    onChange={(event) => {
+                                        clearLoginError();
+                                        setUsername(event.target.value);
+                                    }}
+                                    required
+                                />
+                            </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium text-slate-800">密码</label>
+                            <div className="relative">
+                                <div className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2">
+                                    <FieldIcon kind="lock" />
+                                </div>
+                                <input
+                                    className="h-11 w-full rounded-[1.05rem] border border-slate-200/80 bg-white/90 pl-11 pr-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                                    placeholder="请输入密码"
+                                    type="password"
+                                    value={password}
+                                    onChange={(event) => {
+                                        clearLoginError();
+                                        setPassword(event.target.value);
+                                    }}
+                                    required
+                                />
+                            </div>
+                        </div>
+
+                        {loginError && (
+                            <div className="rounded-[1.05rem] border border-rose-200 bg-[linear-gradient(135deg,rgba(255,244,247,0.98),rgba(255,240,244,0.9))] px-4 py-3 text-sm leading-6 text-rose-700">
+                                {loginError}
+                            </div>
+                        )}
+
+                        <button
+                            className="h-11 w-full cursor-pointer rounded-[1.05rem] bg-gradient-to-r from-sky-500 via-blue-600 to-violet-500 text-sm font-medium text-white shadow-[0_18px_40px_rgba(79,113,255,0.28)] transition hover:brightness-[1.04] focus:outline-none focus:ring-4 focus:ring-blue-200 disabled:cursor-not-allowed disabled:opacity-60"
+                            disabled={isLoggingIn}
+                            type="submit"
+                        >
+                            {isLoggingIn ? "登录中..." : "登录"}
+                        </button>
+                    </form>
                 </div>
-
-                <form className="relative space-y-4" onSubmit={handleSubmit}>
-                    <div className="space-y-2">
-                        <label className="text-sm font-medium text-slate-800">账号</label>
-                        <div className="relative">
-                            <div className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2">
-                                <FieldIcon kind="user" />
-                            </div>
-                            <input
-                                className="h-11 w-full rounded-[1.05rem] border border-slate-200/80 bg-white/90 pl-11 pr-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
-                                placeholder="请输入账号"
-                                value={username}
-                                onChange={(event) => {
-                                    clearLoginError();
-                                    setUsername(event.target.value);
-                                }}
-                                required
-                            />
-                        </div>
-                    </div>
-
-                    <div className="space-y-2">
-                        <label className="text-sm font-medium text-slate-800">密码</label>
-                        <div className="relative">
-                            <div className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2">
-                                <FieldIcon kind="lock" />
-                            </div>
-                            <input
-                                className="h-11 w-full rounded-[1.05rem] border border-slate-200/80 bg-white/90 pl-11 pr-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
-                                placeholder="请输入密码"
-                                type="password"
-                                value={password}
-                                onChange={(event) => {
-                                    clearLoginError();
-                                    setPassword(event.target.value);
-                                }}
-                                required
-                            />
-                        </div>
-                    </div>
-
-                    {loginError && (
-                        <div className="rounded-[1.05rem] border border-rose-200 bg-[linear-gradient(135deg,rgba(255,244,247,0.98),rgba(255,240,244,0.9))] px-4 py-3 text-sm leading-6 text-rose-700">
-                            {loginError}
-                        </div>
-                    )}
-
-                    <button
-                        className="h-11 w-full cursor-pointer rounded-[1.05rem] bg-gradient-to-r from-sky-500 via-blue-600 to-violet-500 text-sm font-medium text-white shadow-[0_18px_40px_rgba(79,113,255,0.28)] transition hover:brightness-[1.04] focus:outline-none focus:ring-4 focus:ring-blue-200 disabled:cursor-not-allowed disabled:opacity-60"
-                        disabled={isLoggingIn}
-                        type="submit"
-                    >
-                        {isLoggingIn ? "登录中..." : "登录"}
-                    </button>
-                </form>
             </div>
         </div>
     );

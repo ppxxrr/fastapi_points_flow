@@ -63,12 +63,14 @@ def _read_text_with_fallback(path: Path) -> str:
 def load_fields_from_sample(base_dir: str | Path | None = None) -> list[str]:
     root = Path(base_dir) if base_dir is not None else PROJECT_ROOT
     candidates = [root / name for name in DEFAULT_FIELD_FILES]
-
-    for path in sorted(root.iterdir()):
-        if path.is_file() and path.suffix.lower() in {".json", ".txt"}:
-            stem = path.stem.lower()
-            if "flow" in stem or "field" in stem:
-                candidates.append(path)
+    try:
+        for path in sorted(root.iterdir()):
+            if path.is_file() and path.suffix.lower() in {".json", ".txt"}:
+                stem = path.stem.lower()
+                if "flow" in stem or "field" in stem:
+                    candidates.append(path)
+    except Exception:
+        pass
 
     for sample_path in candidates:
         if not sample_path.is_file():
@@ -118,7 +120,14 @@ class ICSPClient:
         self.logger = logger
         self.stop_checker = stop_checker
         self.session = requests.Session()
-        self.user_info = {"userid": "", "usercode": "", "username": ""}
+        self.user_info = {
+            "userId": "",
+            "userName": "",
+            "userPhone": "",
+            "userid": "",
+            "usercode": "",
+            "username": "",
+        }
         self.last_login_error = ""
         self.session.headers.update(
             {
@@ -133,12 +142,11 @@ class ICSPClient:
         )
 
     def log(self, level: str, message: str) -> None:
-        if not self.logger:
-            return
-        try:
-            self.logger(level, message)
-        except Exception:
-            return
+        if self.logger:
+            try:
+                self.logger(level, message)
+            except Exception:
+                return
 
     def check_stop(self) -> None:
         if self.stop_checker:
@@ -162,21 +170,21 @@ class ICSPClient:
         cookie_header = prepared.headers.get("Cookie", "")
         if not cookie_header:
             return []
-        return [
-            item.split("=", 1)[0].strip()
-            for item in cookie_header.split(";")
-            if item.split("=", 1)[0].strip()
-        ]
+        return [part.split("=", 1)[0].strip() for part in cookie_header.split(";") if part.strip()]
+
+    @staticmethod
+    def _mask_value(value: str, keep: int = 2) -> str:
+        if not value:
+            return ""
+        if len(value) <= keep * 2:
+            return "*" * len(value)
+        return f"{value[:keep]}***{value[-keep:]}"
 
     def has_serializable_auth_state(self) -> bool:
         return any(cookie.name and cookie.value for cookie in self.session.cookies)
 
     def has_user_context(self) -> bool:
-        return bool(
-            self.user_info.get("userid")
-            and self.user_info.get("usercode")
-            and self.user_info.get("username")
-        )
+        return bool(self.user_info.get("userId"))
 
     def login(self, username: str, password: str) -> bool:
         self.check_stop()
@@ -188,7 +196,6 @@ class ICSPClient:
         }
         headers = {"Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"}
         self.log("INFO", f"[ICSP] logging in as {username}")
-
         try:
             auth_resp = self.session.post(
                 ICSP_BASE + "/icsp-permission/web/permission/sso/auth/authCode",
@@ -197,24 +204,17 @@ class ICSPClient:
                 allow_redirects=False,
                 timeout=15,
             )
-            self.check_stop()
             self.log("INFO", f"[ICSP] authCode response status={auth_resp.status_code}")
             auth_code = ""
-
             if auth_resp.status_code == 302 and "Location" in auth_resp.headers:
                 auth_code = auth_resp.headers["Location"].split("authCode=")[-1]
             elif auth_resp.status_code == 200:
                 try:
                     body = auth_resp.json()
                 except Exception:
-                    self._set_last_login_error(
-                        f"ICSP 登录失败：未获取到 authCode，状态码={auth_resp.status_code}"
-                    )
+                    self._set_last_login_error(f"ICSP 登录失败：未获取到 authCode，状态码={auth_resp.status_code}")
                     return False
-                self.log(
-                    "INFO",
-                    f"[ICSP] authCode response keys={sorted(body.keys()) if isinstance(body, dict) else []}",
-                )
+                self.log("INFO", f"[ICSP] authCode response keys={sorted(body.keys()) if isinstance(body, dict) else []}")
                 if body.get("success") and body.get("data"):
                     auth_code = str(body["data"])
                 else:
@@ -231,19 +231,16 @@ class ICSPClient:
 
             timestamp = str(int(time.time() * 1000))
             self.session.get(f"{ICSP_BASE}/auth.html?authCode={auth_code}", timeout=15)
-            self.check_stop()
             self.session.get(
                 f"{ICSP_BASE}/icsp-permission/web/wd/login/login/sso?_t={timestamp}&authCode={auth_code}",
                 timeout=15,
             )
-            self.check_stop()
 
             cookie_keys = self._cookie_keys()
-            if cookie_keys:
-                self.log("INFO", f"[ICSP] login succeeded and cookies acquired, cookie_keys={cookie_keys}")
-            else:
+            if not cookie_keys:
                 self._set_last_login_error("[ICSP] login succeeded but cookies are empty")
                 return False
+            self.log("INFO", f"[ICSP] login succeeded and cookies acquired, cookie_keys={cookie_keys}")
 
             if self.probe_current_user(username):
                 self.log("SUCCESS", "[ICSP] login succeeded")
@@ -267,29 +264,15 @@ class ICSPClient:
             "Origin": ICSP_BASE,
             "Referer": ICSP_BASE + "/scpg.html",
         }
-
         try:
             self.log("INFO", f"[ICSP] current user query outgoing_cookie_keys={self._outgoing_cookie_keys_for(url)}")
-            response = self.session.get(
-                url,
-                headers=headers,
-                timeout=15,
-                allow_redirects=False,
-            )
+            response = self.session.get(url, headers=headers, timeout=15, allow_redirects=False)
             self.log("INFO", f"[ICSP] current user query status={response.status_code}")
-
             if response.status_code == 302:
                 self.log("WARN", "[ICSP] current user query redirected, session is not accepted")
                 return False
-
             response.raise_for_status()
-
-            try:
-                payload = response.json()
-            except Exception as exc:
-                self.log("WARN", f"[ICSP] current user query invalid json: {exc}")
-                return False
-
+            payload = response.json()
             data = payload.get("data", {}) if isinstance(payload, dict) else {}
             payload_keys = sorted(payload.keys()) if isinstance(payload, dict) else []
             data_keys = sorted(data.keys()) if isinstance(data, dict) else []
@@ -298,18 +281,31 @@ class ICSPClient:
             if not isinstance(data, dict):
                 return False
 
-            user_id = str(data.get("id", "")).strip()
-            user_code = str(data.get("loginCode", login_username or "")).strip()
+            user_id = str(data.get("userId", "")).strip()
             user_name = str(data.get("userName", "")).strip()
-
+            user_phone = str(data.get("userPhone", "")).strip()
             if not user_id:
                 self.log("WARN", "[ICSP] current user query returned no user id")
                 return False
 
-            self.user_info["userid"] = user_id
-            self.user_info["usercode"] = user_code or login_username
-            self.user_info["username"] = urllib.parse.quote(user_name or login_username)
-            self.log("INFO", "[ICSP] current user query succeeded")
+            self.user_info.update(
+                {
+                    "userId": user_id,
+                    "userName": user_name or login_username,
+                    "userPhone": user_phone,
+                    "userid": user_id,
+                    "usercode": user_phone or login_username,
+                    "username": urllib.parse.quote(user_name or login_username),
+                }
+            )
+            self.log(
+                "INFO",
+                "[ICSP] 成功提取 user context: userId=%s, userName=%s"
+                % (
+                    self._mask_value(user_id),
+                    self._mask_value(user_name or login_username, keep=1),
+                ),
+            )
             return True
         except InterruptedError:
             raise
@@ -317,12 +313,7 @@ class ICSPClient:
             self.log("WARN", f"[ICSP] failed to query current user info: {exc}")
             return False
 
-    def probe_current_user(
-        self,
-        login_username: str = "",
-        attempts: int = 8,
-        delay_seconds: float = 1.0,
-    ) -> bool:
+    def probe_current_user(self, login_username: str = "", attempts: int = 8, delay_seconds: float = 1.0) -> bool:
         for attempt in range(1, attempts + 1):
             if self.query_current_user(login_username):
                 if attempt > 1:
@@ -334,17 +325,12 @@ class ICSPClient:
         return False
 
     def ensure_authenticated_session(self, login_username: str = "") -> bool:
-        self.check_stop()
-        if self.has_user_context():
-            return True
-        self.log("INFO", "[ICSP] resolving authenticated session context")
-        return self.probe_current_user(login_username)
+        return self.has_user_context() or self.probe_current_user(login_username)
 
     def probe_points_flow_access(self) -> bool:
         if not self.has_user_context():
             self.log("WARN", "[ICSP] points-flow probe skipped because user context is missing")
             return False
-
         day_str = datetime.now().strftime("%Y-%m-%d")
         payload = {
             "pageNo": 1,
@@ -354,29 +340,19 @@ class ICSPClient:
             "createEndTime": f"{day_str} 23:59:59",
             "fromWeb": 1,
         }
-
         try:
             self.log("INFO", f"[ICSP] points-flow probe outgoing_cookie_keys={self._outgoing_cookie_keys_for(POINT_FLOW_URL)}")
-            response = self.session.post(
-                POINT_FLOW_URL,
-                headers=self._api_headers(),
-                json=payload,
-                timeout=20,
-            )
+            response = self.session.post(POINT_FLOW_URL, headers=self._api_headers(), json=payload, timeout=20)
             self.log("INFO", f"[ICSP] points-flow probe status={response.status_code}")
             response.raise_for_status()
             payload_json = response.json()
             payload_keys = sorted(payload_json.keys()) if isinstance(payload_json, dict) else []
             self.log("INFO", f"[ICSP] points-flow probe payload_keys={payload_keys}")
-
             if isinstance(payload_json, dict):
                 if payload_json.get("success") is False:
-                    self.log("WARN", f"[ICSP] points-flow probe returned success=false, code={payload_json.get('code')}")
                     return False
                 if str(payload_json.get("code", "")) == "5000":
-                    self.log("WARN", "[ICSP] points-flow probe returned code=5000")
                     return False
-
             self.log("SUCCESS", "[ICSP] points-flow probe succeeded")
             return True
         except InterruptedError:
@@ -391,31 +367,24 @@ class ICSPClient:
         if not cookie_keys:
             self.log("WARN", "[ICSP] validation failed: login succeeded but cookies are empty")
             return False
-
         self.log("INFO", f"[ICSP] validation using cookie_keys={cookie_keys}")
-        self.log(
-            "INFO",
-            f"[ICSP] validation outgoing_cookie_keys={self._outgoing_cookie_keys_for(ICSP_BASE + '/icsp-employee/web/login/query/v2')}",
-        )
-
+        self.log("INFO", f"[ICSP] validation outgoing_cookie_keys={self._outgoing_cookie_keys_for(ICSP_BASE + '/icsp-employee/web/login/query/v2')}")
         if not self.has_user_context() and not self.probe_current_user(login_username):
             self.log("WARN", "[ICSP] validation failed: missing user context and query/v2 did not recover it")
             return False
-
         if not self.probe_points_flow_access():
             self.log("WARN", "[ICSP] validation failed: recovered session could not access points-flow api")
             return False
-
         self.log("SUCCESS", "[ICSP] recovered session validation succeeded")
         return True
 
     def get_profile(self, login_username: str) -> dict[str, str]:
-        display_name = urllib.parse.unquote(self.user_info.get("username", "")) or login_username
+        display_name = self.user_info.get("userName", "") or urllib.parse.unquote(self.user_info.get("username", "")) or login_username
         return {
             "username": login_username,
             "display_name": display_name,
-            "user_id": self.user_info.get("userid", ""),
-            "user_code": self.user_info.get("usercode", login_username),
+            "user_id": self.user_info.get("userId", "") or self.user_info.get("userid", ""),
+            "user_code": self.user_info.get("userPhone", "") or self.user_info.get("usercode", "") or login_username,
         }
 
     def export_auth_state(self, login_username: str) -> dict[str, Any]:
@@ -434,29 +403,13 @@ class ICSPClient:
         return {
             "login_username": login_username,
             "authenticated_at": datetime.now().isoformat(),
-            "user_info": dict(self.user_info),
+            "user_info": {
+                "userId": self.user_info.get("userId", ""),
+                "userName": self.user_info.get("userName", ""),
+                "userPhone": self.user_info.get("userPhone", ""),
+            },
             "cookies": serialized_cookies,
         }
-
-    @classmethod
-    def from_session(
-        cls,
-        session: requests.Session,
-        user_info: dict[str, Any] | None = None,
-        logger: LoggerCallback | None = None,
-        stop_checker: StopChecker | None = None,
-    ) -> "ICSPClient":
-        client = cls(logger=logger, stop_checker=stop_checker)
-        client.session.headers.update(session.headers)
-        client.session.cookies.update(session.cookies)
-        source_user_info = user_info or {}
-        client.user_info = {
-            "userid": str(source_user_info.get("userid", "")),
-            "usercode": str(source_user_info.get("usercode", "")),
-            "username": str(source_user_info.get("username", "")),
-        }
-        client.log("INFO", f"[ICSP] restored client from existing session, cookie_keys={client._cookie_keys()}")
-        return client
 
     @classmethod
     def from_auth_state(
@@ -466,10 +419,17 @@ class ICSPClient:
         stop_checker: StopChecker | None = None,
     ) -> "ICSPClient":
         client = cls(logger=logger, stop_checker=stop_checker)
+        user_info = auth_state.get("user_info") or {}
+        restored_user_id = str(user_info.get("userId", "")).strip()
+        restored_user_name = str(user_info.get("userName", "")).strip()
+        restored_user_phone = str(user_info.get("userPhone", "")).strip()
         client.user_info = {
-            "userid": str((auth_state.get('user_info') or {}).get('userid', '')),
-            "usercode": str((auth_state.get('user_info') or {}).get('usercode', '')),
-            "username": str((auth_state.get('user_info') or {}).get('username', '')),
+            "userId": restored_user_id,
+            "userName": restored_user_name,
+            "userPhone": restored_user_phone,
+            "userid": restored_user_id,
+            "usercode": restored_user_phone,
+            "username": urllib.parse.quote(restored_user_name),
         }
         for item in auth_state.get("cookies") or []:
             if not isinstance(item, dict):
@@ -478,7 +438,6 @@ class ICSPClient:
             value = str(item.get("value", ""))
             if name and value:
                 client.session.cookies.set(name, value)
-
         cookie_keys = client._cookie_keys()
         if cookie_keys:
             client.log("INFO", f"[ICSP] restored auth state from serialized cookies, cookie_keys={cookie_keys}")
@@ -509,10 +468,8 @@ class ICSPClient:
     def _extract_rows_and_total(payload: dict) -> tuple[list[dict], int]:
         if not isinstance(payload, dict):
             return [], 0
-
         rows: list[dict] = []
         total = 0
-
         if isinstance(payload.get("rows"), list):
             rows = payload["rows"]
         elif isinstance(payload.get("list"), list):
@@ -532,7 +489,6 @@ class ICSPClient:
             elif isinstance(nested.get("records"), list):
                 rows = nested["records"]
             total = int(nested.get("total") or nested.get("totalCount") or nested.get("totalSize") or 0)
-
         if not total:
             total = int(payload.get("total") or payload.get("totalCount") or payload.get("totalSize") or 0)
         if not total and rows:
@@ -562,12 +518,7 @@ class ICSPClient:
             "createEndTime": f"{end_date} 23:59:59",
             "fromWeb": 1,
         }
-        response = use_session.post(
-            POINT_FLOW_URL,
-            headers=self._api_headers(),
-            json=payload,
-            timeout=20,
-        )
+        response = use_session.post(POINT_FLOW_URL, headers=self._api_headers(), json=payload, timeout=20)
         response.raise_for_status()
         return self._extract_rows_and_total(response.json())
 
@@ -576,10 +527,8 @@ class ICSPClient:
         if not first_rows:
             self.log("WARN", "[points-flow] no data returned")
             return []
-
-        all_rows: list[dict] = list(first_rows)
+        all_rows = list(first_rows)
         self.log("INFO", f"[points-flow] first page rows={len(first_rows)}, total={total}")
-
         if total and total > PAGE_SIZE:
             total_pages = math.ceil(total / PAGE_SIZE)
             workers = min(MAX_PAGE_WORKERS, max(1, total_pages - 1))
@@ -612,75 +561,8 @@ class ICSPClient:
                 last_size = len(rows)
                 self.log("INFO", f"[points-flow] fetched page {page_no}, rows={len(all_rows)}")
                 page_no += 1
-
         self.log("SUCCESS", f"[points-flow] fetch completed, total rows={len(all_rows)}")
         return all_rows
-
-
-def export_to_excel(
-    rows: list[dict],
-    fields: Sequence[str],
-    start_date: str,
-    end_date: str,
-    output_dir: str | Path,
-    file_tag: str | None = None,
-) -> Path:
-    workbook = Workbook()
-    worksheet = workbook.active
-    worksheet.title = "points_flow"
-
-    field_list = list(fields)
-    if not field_list:
-        keys: set[str] = set()
-        for row in rows:
-            keys.update(row.keys())
-        field_list = sorted(keys)
-
-    header_fill = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
-    header_font = Font(color="FFFFFF", bold=True)
-    center = Alignment(horizontal="center", vertical="center")
-    thin = Border(
-        left=Side(style="thin"),
-        right=Side(style="thin"),
-        top=Side(style="thin"),
-        bottom=Side(style="thin"),
-    )
-
-    worksheet.append(field_list)
-    for cell in worksheet[1]:
-        cell.font = header_font
-        cell.fill = header_fill
-        cell.alignment = center
-        cell.border = thin
-
-    for row in rows:
-        worksheet.append([format_cell_value(key, row.get(key)) for key in field_list])
-
-    for row_cells in worksheet.iter_rows(
-        min_row=2,
-        max_row=worksheet.max_row,
-        min_col=1,
-        max_col=len(field_list),
-    ):
-        for cell in row_cells:
-            cell.border = thin
-            cell.alignment = center
-
-    worksheet.freeze_panes = "A2"
-    for col_idx, header in enumerate(field_list, start=1):
-        column = get_column_letter(col_idx)
-        max_len = len(str(header))
-        for row_num in range(2, worksheet.max_row + 1):
-            value = worksheet[f"{column}{row_num}"].value
-            max_len = max(max_len, len(str(value)) if value is not None else 0)
-        worksheet.column_dimensions[column].width = min(max_len * 1.2 + 4, 60)
-
-    export_root = Path(output_dir)
-    export_root.mkdir(parents=True, exist_ok=True)
-    suffix = f"_{file_tag}" if file_tag else ""
-    output_path = export_root / f"points_flow_{start_date}_{end_date}{suffix}.xlsx"
-    workbook.save(output_path)
-    return output_path
 
 
 def run_points_flow_export(
@@ -700,11 +582,9 @@ def run_points_flow_export(
         raise RuntimeError(client.last_login_error or "ICSP 登录失败，请检查账号或密码。")
     if not client.ensure_authenticated_session(username):
         raise RuntimeError("ICSP 登录成功，但未能获取用户上下文，请稍后重试。")
-
     if logger:
         logger("INFO", "Starting points flow data fetch.")
     rows = client.fetch_point_flow(start_date, end_date)
-
     if logger:
         logger("INFO", "Starting Excel export.")
     output_file = export_to_excel(
@@ -767,12 +647,10 @@ def run_points_flow_export_with_auth_state(
     login_username = str(auth_state.get("login_username", "")).strip()
     if not client.validate_authenticated_session(login_username):
         raise RuntimeError("登录失效，请重新登录")
-
     if logger:
         logger("INFO", "Using authenticated ICSP session.")
         logger("INFO", "Starting points flow data fetch.")
     rows = client.fetch_point_flow(start_date, end_date)
-
     if logger:
         logger("INFO", "Starting Excel export.")
     output_file = export_to_excel(
@@ -788,15 +666,11 @@ def run_points_flow_export_with_auth_state(
     return ExportJobResult(output_file=output_file, result_count=len(rows))
 
 
-def refresh_icsp_auth_state(
-    auth_state: dict[str, Any],
-    logger: LoggerCallback | None = None,
-) -> ICSPAuthResult:
+def refresh_icsp_auth_state(auth_state: dict[str, Any], logger: LoggerCallback | None = None) -> ICSPAuthResult:
     login_username = str(auth_state.get("login_username", "")).strip()
     client = ICSPClient.from_auth_state(auth_state, logger=logger)
     if not client.validate_authenticated_session(login_username):
         raise RuntimeError("登录失效，请重新登录")
-
     profile = client.get_profile(login_username or client.user_info.get("usercode", ""))
     refreshed_auth_state = client.export_auth_state(profile["username"])
     return ICSPAuthResult(
