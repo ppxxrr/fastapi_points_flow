@@ -32,10 +32,10 @@ export default function LoginPage() {
             <LoginBackground />
 
             <div className="relative w-full max-w-[31rem]">
-                <div className="pointer-events-none absolute inset-x-6 inset-y-6 rounded-[2.5rem] bg-[radial-gradient(circle,rgba(96,165,250,0.24),rgba(129,140,248,0.12),transparent_72%)] blur-[58px]" />
+                <div className="pointer-events-none absolute inset-x-6 inset-y-6 rounded-[2.5rem] bg-[radial-gradient(circle,rgba(96,165,250,0.2),rgba(129,140,248,0.1),transparent_72%)] blur-[58px]" />
 
-                <div className="relative mx-auto flex min-h-[27.75rem] w-full max-w-[26.8rem] flex-col rounded-[2.35rem] border border-white/55 bg-[linear-gradient(180deg,rgba(255,255,255,0.6),rgba(247,249,255,0.38))] px-7 py-7 shadow-[0_34px_88px_rgba(71,93,160,0.12)] backdrop-blur-[46px]">
-                    <div className="pointer-events-none absolute inset-0 rounded-[2.35rem] bg-[radial-gradient(circle_at_top_right,_rgba(129,140,248,0.14),_transparent_28%),radial-gradient(circle_at_bottom_left,_rgba(56,189,248,0.08),_transparent_32%)]" />
+                <div className="relative mx-auto flex min-h-[27.75rem] w-full max-w-[26.8rem] flex-col rounded-[2.35rem] border border-white/55 bg-[linear-gradient(180deg,rgba(255,255,255,0.58),rgba(247,249,255,0.34))] px-7 py-7 shadow-[0_34px_88px_rgba(71,93,160,0.12)] backdrop-blur-[48px]">
+                    <div className="pointer-events-none absolute inset-0 rounded-[2.35rem] bg-[radial-gradient(circle_at_top_right,_rgba(129,140,248,0.13),_transparent_28%),radial-gradient(circle_at_bottom_left,_rgba(56,189,248,0.07),_transparent_32%)]" />
 
                     <div className="relative flex flex-col items-center text-center">
                         <BrandMark />
@@ -48,7 +48,7 @@ export default function LoginPage() {
                     </div>
 
                     <form className="relative mt-7 flex flex-1 flex-col justify-between" onSubmit={handleSubmit}>
-                        <div className="space-y-4.5">
+                        <div className="space-y-5">
                             <div className="grid grid-cols-[3.5rem_minmax(0,1fr)] items-center gap-3.5">
                                 <label className="text-sm font-medium text-slate-800">账号</label>
                                 <input
