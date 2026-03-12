@@ -16,3 +16,6 @@ git push
 服务器：
 cd /opt/fastapi_points_flow
 ./deploy.sh
+
+sudo nginx -t
+sudo systemctl reload nginx

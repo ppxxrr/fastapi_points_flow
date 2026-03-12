@@ -239,6 +239,9 @@ class ICSPClient:
             self.log("WARN", f"[ICSP] failed to query current user info: {exc}")
             return False
 
+    def has_serializable_auth_state(self) -> bool:
+        return any(cookie.name and cookie.value for cookie in self.session.cookies)
+
     def ensure_authenticated_session(self, login_username: str = "") -> bool:
         self.check_stop()
         if self.user_info.get("userid") and self.user_info.get("usercode") and self.user_info.get("username"):
@@ -249,6 +252,13 @@ class ICSPClient:
             return True
 
         return False
+
+    def validate_authenticated_session(self, login_username: str = "") -> bool:
+        self.log("INFO", "[ICSP] validating recovered authenticated session")
+        if not self.has_serializable_auth_state():
+            self.log("WARN", "[ICSP] no reusable authentication cookies found")
+            return False
+        return self.ensure_authenticated_session(login_username)
 
     def get_profile(self, login_username: str) -> dict[str, str]:
         display_name = urllib.parse.unquote(self.user_info.get("username", "")) or login_username
@@ -273,6 +283,7 @@ class ICSPClient:
         ]
         return {
             "login_username": login_username,
+            "authenticated_at": datetime.now().isoformat(),
             "user_info": dict(self.user_info),
             "cookies": serialized_cookies,
         }
@@ -581,18 +592,25 @@ def authenticate_icsp_user(
     client = ICSPClient(logger=logger)
     if not client.login(username, password):
         raise RuntimeError("ICSP \u767b\u5f55\u5931\u8d25\uff0c\u8bf7\u68c0\u67e5\u8d26\u53f7\u6216\u5bc6\u7801\u3002")
-    if not client.ensure_authenticated_session(username):
+    if not client.has_serializable_auth_state():
+        raise RuntimeError(
+            "ICSP \u767b\u5f55\u6210\u529f\uff0c\u4f46\u672a\u83b7\u53d6\u5230\u53ef\u590d\u7528\u7684\u8ba4\u8bc1\u4fe1\u606f\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002"
+        )
+
+    serialized_auth_state = client.export_auth_state(username)
+    recovered_client = ICSPClient.from_auth_state(serialized_auth_state, logger=logger)
+    if not recovered_client.validate_authenticated_session(username):
         raise RuntimeError(
             "ICSP \u767b\u5f55\u6210\u529f\uff0c\u4f46\u672a\u80fd\u5efa\u7acb\u53ef\u590d\u7528\u4f1a\u8bdd\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002"
         )
 
-    profile = client.get_profile(username)
+    profile = recovered_client.get_profile(username)
     return ICSPAuthResult(
         username=profile["username"],
         display_name=profile["display_name"],
         user_id=profile["user_id"],
         user_code=profile["user_code"],
-        auth_state=client.export_auth_state(username),
+        auth_state=recovered_client.export_auth_state(profile["username"]),
     )
 
 
@@ -607,7 +625,7 @@ def run_points_flow_export_with_auth_state(
 ) -> ExportJobResult:
     client = ICSPClient.from_auth_state(auth_state, logger=logger, stop_checker=stop_checker)
     login_username = str(auth_state.get("login_username", "")).strip()
-    if not client.ensure_authenticated_session(login_username):
+    if not client.validate_authenticated_session(login_username):
         raise RuntimeError("\u767b\u5f55\u5931\u6548\uff0c\u8bf7\u91cd\u65b0\u767b\u5f55")
 
     if logger:
@@ -637,7 +655,7 @@ def refresh_icsp_auth_state(
 ) -> ICSPAuthResult:
     login_username = str(auth_state.get("login_username", "")).strip()
     client = ICSPClient.from_auth_state(auth_state, logger=logger)
-    if not client.ensure_authenticated_session(login_username):
+    if not client.validate_authenticated_session(login_username):
         raise RuntimeError("\u767b\u5f55\u5931\u6548\uff0c\u8bf7\u91cd\u65b0\u767b\u5f55")
 
     profile = client.get_profile(login_username or client.user_info.get("usercode", ""))
