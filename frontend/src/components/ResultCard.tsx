@@ -1,6 +1,5 @@
 import type { TaskStatus } from "./TaskStatusCard";
 
-
 export interface ResultCardData {
     fileName: string;
     resultCount: number;
@@ -10,11 +9,9 @@ export interface ResultCardData {
     downloadHref?: string;
 }
 
-
 interface ResultCardProps {
     data: ResultCardData;
 }
-
 
 export default function ResultCard({ data }: ResultCardProps) {
     const canDownload = data.status === "success" && Boolean(data.fileName) && Boolean(data.downloadHref);
@@ -47,7 +44,7 @@ export default function ResultCard({ data }: ResultCardProps) {
                 <div className="rounded-[1.2rem] bg-white/92 px-4 py-4 shadow-[0_12px_24px_rgba(15,23,42,0.04)]">
                     <div className="text-sm text-slate-400">文件名</div>
                     <div className="mt-2 break-all text-sm font-medium text-slate-900">
-                        {data.fileName || "任务完成后将在这里展示导出文件名。"}
+                        {data.fileName || "任务完成后将在这里展示导出文件名"}
                     </div>
                 </div>
 
@@ -61,7 +58,7 @@ export default function ResultCard({ data }: ResultCardProps) {
                 <div className="mt-4 rounded-[1.2rem] bg-white/92 px-4 py-4 shadow-[0_12px_24px_rgba(15,23,42,0.04)]">
                     <div className="text-sm text-slate-400">更新时间</div>
                     <div className="mt-2 text-sm font-medium text-slate-900">
-                        {data.updatedAt || "等待任务执行后更新。"}
+                        {data.updatedAt || "等待任务执行后更新"}
                     </div>
                 </div>
 
@@ -73,7 +70,7 @@ export default function ResultCard({ data }: ResultCardProps) {
 
                 {canDownload ? (
                     <a
-                        className="mt-auto inline-flex h-11 w-full cursor-pointer items-center justify-center rounded-[1.15rem] bg-gradient-to-r from-sky-500 via-blue-600 to-violet-500 text-sm font-medium text-white shadow-[0_20px_40px_rgba(59,130,246,0.22)] transition hover:brightness-[1.04]"
+                        className="mt-auto inline-flex h-11 cursor-pointer items-center justify-center rounded-[1.15rem] bg-gradient-to-r from-sky-500 via-blue-600 to-violet-500 text-sm font-medium text-white shadow-[0_20px_40px_rgba(59,130,246,0.22)] transition hover:brightness-[1.04]"
                         href={data.downloadHref}
                     >
                         下载 Excel 文件

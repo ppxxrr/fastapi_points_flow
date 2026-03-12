@@ -7,11 +7,9 @@ export interface HealthCardData {
     error?: string;
 }
 
-
 interface HealthCardProps {
     data: HealthCardData;
 }
-
 
 const toneMap = {
     online: {
@@ -30,7 +28,6 @@ const toneMap = {
         dot: "bg-rose-500",
     },
 };
-
 
 export default function HealthCard({ data }: HealthCardProps) {
     const tone = toneMap[data.status];

@@ -4,7 +4,6 @@ import { getApiErrorMessage } from "../api/client";
 import { getHealthStatus } from "../api/pointsFlow";
 import { useAuth } from "../auth/AuthContext";
 
-
 function FieldIcon({ kind }: { kind: "user" | "lock" }) {
     if (kind === "lock") {
         return (
@@ -23,7 +22,6 @@ function FieldIcon({ kind }: { kind: "user" | "lock" }) {
     );
 }
 
-
 function BrandMark() {
     return (
         <div className="flex h-16 w-16 items-center justify-center rounded-[1.4rem] bg-gradient-to-br from-sky-400 via-blue-500 to-violet-500 shadow-[0_22px_55px_rgba(88,123,255,0.34)] ring-1 ring-white/60">
@@ -34,7 +32,6 @@ function BrandMark() {
         </div>
     );
 }
-
 
 export default function LoginPage() {
     const { login, isLoggingIn, loginError, clearLoginError } = useAuth();

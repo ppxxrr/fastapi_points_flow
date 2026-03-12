@@ -18,25 +18,20 @@ import TaskForm, { type TaskFormValues } from "../components/TaskForm";
 import TaskStatusCard, { type TaskStatusData } from "../components/TaskStatusCard";
 import Topbar from "../components/Topbar";
 
-
 interface DashboardPageProps {
     currentUser: AuthUser;
     onLogout: () => Promise<void> | void;
 }
 
-
 const POLL_INTERVAL_MS = 3000;
-
 
 function recentTaskKey(username: string) {
     return `points_flow_recent_task_id:${username}`;
 }
 
-
 function makeDisplayTime() {
     return new Date().toLocaleString("zh-CN");
 }
-
 
 function formatApiTime(value?: string | null) {
     if (!value) {
@@ -51,13 +46,7 @@ function formatApiTime(value?: string | null) {
     return parsed.toLocaleString("zh-CN");
 }
 
-
-function toUiTaskStatus(
-    task: PointsFlowTask | null,
-    fallbackUsername: string,
-    fallbackStartDate: string,
-    fallbackEndDate: string,
-): TaskStatusData {
+function toUiTaskStatus(task: PointsFlowTask | null, fallbackUsername: string): TaskStatusData {
     if (!task) {
         return {
             taskId: "等待创建",
@@ -67,8 +56,8 @@ function toUiTaskStatus(
             updatedAt: "",
             params: {
                 username: fallbackUsername,
-                startDate: fallbackStartDate,
-                endDate: fallbackEndDate,
+                startDate: "",
+                endDate: "",
             },
             resultCount: 0,
             error: "",
@@ -91,7 +80,6 @@ function toUiTaskStatus(
     };
 }
 
-
 export default function DashboardPage({ currentUser, onLogout }: DashboardPageProps) {
     const [initialNow] = useState(() => makeDisplayTime());
     const [activeSection, setActiveSection] = useState<SidebarSection>("create");
@@ -112,7 +100,7 @@ export default function DashboardPage({ currentUser, onLogout }: DashboardPagePr
     const operatorName = currentUser.display_name || currentUser.username;
 
     const task = useMemo(
-        () => toUiTaskStatus(taskRecord, currentUser.username, "", ""),
+        () => toUiTaskStatus(taskRecord, currentUser.username),
         [currentUser.username, taskRecord],
     );
 

@@ -4,11 +4,9 @@ export interface TaskLogItem {
     message: string;
 }
 
-
 interface LogsTableProps {
     logs: TaskLogItem[];
 }
-
 
 function levelTone(level: string) {
     const normalized = level.toUpperCase();
@@ -23,7 +21,6 @@ function levelTone(level: string) {
     }
     return "bg-blue-100 text-blue-700";
 }
-
 
 export default function LogsTable({ logs }: LogsTableProps) {
     return (

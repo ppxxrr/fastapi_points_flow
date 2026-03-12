@@ -15,7 +15,7 @@ export default {
         }
       },
       boxShadow: {
-        glass: "0 24px 80px rgba(71, 93, 160, 0.16)",
+        glass: "0 28px 100px rgba(71, 93, 160, 0.16)",
         panel: "0 18px 42px rgba(15, 23, 42, 0.06)"
       },
       borderRadius: {

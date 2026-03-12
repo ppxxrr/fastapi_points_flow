@@ -1,11 +1,9 @@
 import { type FormEvent, useEffect, useState } from "react";
 
-
 export interface TaskFormValues {
     startDate: string;
     endDate: string;
 }
-
 
 interface TaskFormProps {
     username: string;
@@ -16,7 +14,6 @@ interface TaskFormProps {
     errorMessage?: string;
 }
 
-
 function buildDefaultRange() {
     const now = new Date();
     const start = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -25,7 +22,6 @@ function buildDefaultRange() {
         endDate: now.toISOString().slice(0, 10),
     };
 }
-
 
 export default function TaskForm({
     username,

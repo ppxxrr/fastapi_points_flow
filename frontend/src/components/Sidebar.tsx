@@ -1,8 +1,6 @@
 import type { ReactNode } from "react";
 
-
 export type SidebarSection = "create" | "status" | "logs" | "results" | "health";
-
 
 interface SidebarProps {
     active: SidebarSection;
@@ -11,14 +9,12 @@ interface SidebarProps {
     onLogout: () => void;
 }
 
-
 interface NavItem {
     key: SidebarSection;
     label: string;
     hint: string;
     icon: ReactNode;
 }
-
 
 function NavIcon(props: { path: string }) {
     return (
@@ -27,7 +23,6 @@ function NavIcon(props: { path: string }) {
         </svg>
     );
 }
-
 
 const navItems: NavItem[] = [
     {
@@ -61,7 +56,6 @@ const navItems: NavItem[] = [
         icon: <NavIcon path="M4 13h4l2-5 4 10 2-5h4" />,
     },
 ];
-
 
 export default function Sidebar({
     active,

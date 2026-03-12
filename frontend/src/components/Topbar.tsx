@@ -4,7 +4,6 @@ interface TopbarProps {
     onLogout: () => void;
 }
 
-
 export default function Topbar({ operatorName, currentTaskId, onLogout }: TopbarProps) {
     return (
         <header className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
@@ -46,7 +45,7 @@ export default function Topbar({ operatorName, currentTaskId, onLogout }: Topbar
                     </div>
 
                     <button
-                        className="inline-flex h-12 items-center justify-center rounded-[1.25rem] border border-white/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.88),rgba(247,249,255,0.84))] px-4 text-sm font-medium text-slate-700 shadow-[0_18px_35px_rgba(76,108,180,0.08)] transition hover:text-slate-950"
+                        className="inline-flex h-12 cursor-pointer items-center justify-center rounded-[1.25rem] border border-white/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.88),rgba(247,249,255,0.84))] px-4 text-sm font-medium text-slate-700 shadow-[0_18px_35px_rgba(76,108,180,0.08)] transition hover:text-slate-950"
                         onClick={onLogout}
                         type="button"
                     >

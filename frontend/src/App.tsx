@@ -2,7 +2,6 @@ import { useAuth } from "./auth/AuthContext";
 import DashboardPage from "./pages/DashboardPage";
 import LoginPage from "./pages/LoginPage";
 
-
 export default function App() {
     const { isBootstrapping, user, logout } = useAuth();
 

@@ -7,9 +7,8 @@ import {
     type ReactNode,
 } from "react";
 
-import { getApiErrorMessage, isUnauthorizedError } from "../api/client";
 import { getCurrentUser, loginWithICSP, logoutFromICSP, type AuthUser } from "../api/auth";
-
+import { getApiErrorMessage, isUnauthorizedError } from "../api/client";
 
 interface AuthContextValue {
     user: AuthUser | null;
@@ -23,9 +22,7 @@ interface AuthContextValue {
     clearLoginError: () => void;
 }
 
-
 const AuthContext = createContext<AuthContextValue | null>(null);
-
 
 export function AuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<AuthUser | null>(null);
@@ -85,7 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
             await logoutFromICSP();
         } catch {
-            // Ignore logout transport errors and clear local state anyway.
+            // Ignore transport errors and clear local state anyway.
         } finally {
             setUser(null);
             setLoginError("");
@@ -125,7 +122,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
-
 
 export function useAuth() {
     const context = useContext(AuthContext);

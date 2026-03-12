@@ -1,13 +1,10 @@
 import { apiRequest, buildApiUrl } from "./client";
 
-
 export type PointsFlowTaskStatus = "pending" | "running" | "success" | "failed";
-
 
 export interface HealthResponse {
     status: string;
 }
-
 
 export interface PointsFlowTaskLog {
     time: string;
@@ -15,13 +12,11 @@ export interface PointsFlowTaskLog {
     message: string;
 }
 
-
 export interface PointsFlowTaskParams {
     username: string;
     start_date: string;
     end_date: string;
 }
-
 
 export interface PointsFlowTask {
     task_id: string;
@@ -36,17 +31,14 @@ export interface PointsFlowTask {
     error: string | null;
 }
 
-
 export interface CreatePointsFlowTaskPayload {
     start_date: string;
     end_date: string;
 }
 
-
 export async function getHealthStatus() {
     return apiRequest<HealthResponse>("/health");
 }
-
 
 export async function createPointsFlowTask(payload: CreatePointsFlowTaskPayload) {
     return apiRequest<PointsFlowTask>("/api/points-flow/tasks", {
@@ -58,16 +50,13 @@ export async function createPointsFlowTask(payload: CreatePointsFlowTaskPayload)
     });
 }
 
-
 export async function getPointsFlowTask(taskId: string) {
     return apiRequest<PointsFlowTask>(`/api/points-flow/tasks/${encodeURIComponent(taskId)}`);
 }
 
-
 export function shouldPollTask(task: PointsFlowTask | null) {
     return Boolean(task && (task.status === "pending" || task.status === "running"));
 }
-
 
 export function buildPointsFlowDownloadUrl(filename: string) {
     return buildApiUrl(`/api/points-flow/downloads/${encodeURIComponent(filename)}`);
