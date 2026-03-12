@@ -94,7 +94,7 @@ export default function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
             </div>
 
             <div className={["px-4", collapsed ? "pt-4" : "pt-2"].join(" ")}>
-                <NavButton collapsed={collapsed} icon={<AppIcon />} label="积分导出" />
+                <NavButton collapsed={collapsed} icon={<AppIcon />} label="会员积分流水导出" />
             </div>
 
             <div className="mt-auto px-4 pb-5">
@@ -111,7 +111,7 @@ export default function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
                             <div className="text-[0.7rem] font-medium uppercase tracking-[0.2em] text-slate-400">
                                 Program
                             </div>
-                            <div className="mt-2 text-sm font-medium text-slate-900">积分导出</div>
+                            <div className="mt-2 text-sm font-medium text-slate-900">会员积分流水导出</div>
                         </>
                     )}
                 </div>
