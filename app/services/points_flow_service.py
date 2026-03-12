@@ -170,6 +170,13 @@ class ICSPClient:
     def _set_last_login_error(self, message: str) -> None:
         self.last_login_error = message
 
+    def has_user_context(self) -> bool:
+        return bool(
+            self.user_info.get("userid")
+            and self.user_info.get("usercode")
+            and self.user_info.get("username")
+        )
+
     def login(self, username: str, password: str) -> bool:
         self.check_stop()
         self._set_last_login_error("")
@@ -283,8 +290,8 @@ class ICSPClient:
         self,
         login_username: str = "",
         *,
-        attempts: int = 3,
-        delay_seconds: float = 0.5,
+        attempts: int = 8,
+        delay_seconds: float = 1.0,
     ) -> bool:
         for attempt in range(1, attempts + 1):
             if self.query_current_user(login_username):
@@ -301,7 +308,7 @@ class ICSPClient:
 
     def ensure_authenticated_session(self, login_username: str = "") -> bool:
         self.check_stop()
-        if self.user_info.get("userid") and self.user_info.get("usercode") and self.user_info.get("username"):
+        if self.has_user_context():
             return True
 
         self.log("INFO", "[ICSP] resolving authenticated session context")
@@ -309,6 +316,61 @@ class ICSPClient:
             return True
 
         return False
+
+    def probe_points_flow_access(self) -> bool:
+        self.check_stop()
+        if not self.has_user_context():
+            self.log("WARN", "[ICSP] points-flow probe skipped: user context is missing")
+            return False
+
+        now = datetime.now()
+        date_text = now.strftime("%Y-%m-%d")
+        payload = {
+            "pageNo": 1,
+            "pageSize": 1,
+            "plazaBuId": PLAZA_BU_ID,
+            "createStartTime": f"{date_text} 00:00:00",
+            "createEndTime": f"{date_text} 23:59:59",
+            "fromWeb": 1,
+        }
+        outgoing_cookie_keys = self._outgoing_cookie_keys_for(POINT_FLOW_URL)
+        self.log("INFO", f"[ICSP] points-flow probe outgoing_cookie_keys={outgoing_cookie_keys}")
+
+        try:
+            response = self.session.post(
+                POINT_FLOW_URL,
+                headers=self._api_headers(),
+                json=payload,
+                timeout=20,
+            )
+            response.raise_for_status()
+            data = response.json()
+            if isinstance(data, dict):
+                top_keys = sorted(data.keys())
+                status_value = str(data.get("status", "")).strip()
+                success_value = data.get("success")
+                self.log(
+                    "INFO",
+                    (
+                        "[ICSP] points-flow probe response "
+                        f"status_code={response.status_code}, top_keys={top_keys}, "
+                        f"payload_status={status_value or '<empty>'}, payload_success={success_value!r}"
+                    ),
+                )
+                if status_value == "5000":
+                    self.log("WARN", "[ICSP] points-flow probe failed: payload status=5000")
+                    return False
+                if success_value is False:
+                    self.log("WARN", "[ICSP] points-flow probe failed: payload success=false")
+                    return False
+
+            self.log("INFO", "[ICSP] points-flow probe succeeded")
+            return True
+        except InterruptedError:
+            raise
+        except Exception as exc:
+            self.log("WARN", f"[ICSP] points-flow probe failed: {exc}")
+            return False
 
     def validate_authenticated_session(self, login_username: str = "") -> bool:
         self.log("INFO", "[ICSP] validating recovered authenticated session")
@@ -325,11 +387,17 @@ class ICSPClient:
                 f"{self._outgoing_cookie_keys_for(f'{ICSP_BASE}/icsp-employee/web/login/query/v2')}"
             ),
         )
-        validated = self.probe_current_user(login_username)
+        if not self.has_user_context():
+            self.log("INFO", "[ICSP] validation requires resolving missing user context via query/v2")
+            if not self.probe_current_user(login_username):
+                self.log("WARN", "[ICSP] validation failed: missing user context and query/v2 did not recover it")
+                return False
+
+        validated = self.probe_points_flow_access()
         if validated:
             self.log("SUCCESS", "[ICSP] recovered session validation succeeded")
         else:
-            self.log("WARN", "[ICSP] validation failed: recovered session could not pass query/v2")
+            self.log("WARN", "[ICSP] validation failed: recovered session could not pass points-flow probe")
         return validated
 
     def get_profile(self, login_username: str) -> dict[str, str]:
