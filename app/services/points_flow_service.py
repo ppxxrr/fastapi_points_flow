@@ -119,6 +119,7 @@ class ICSPClient:
         self.stop_checker = stop_checker
         self.session = requests.Session()
         self.user_info = {"userid": "", "usercode": "", "username": ""}
+        self.last_login_error = ""
         self.session.headers.update(
             {
                 "User-Agent": (
@@ -149,8 +150,15 @@ class ICSPClient:
         encoded = base64.b64encode(combined).decode()
         return f"{encoded}.{ICSP_SALT}"
 
+    def _cookie_keys(self) -> list[str]:
+        return sorted({cookie.name for cookie in self.session.cookies if cookie.name})
+
+    def _set_last_login_error(self, message: str) -> None:
+        self.last_login_error = message
+
     def login(self, username: str, password: str) -> bool:
         self.check_stop()
+        self._set_last_login_error("")
         payload = {
             "clientId": ICSP_CLIENT_ID,
             "passwd": self._make_password(password),
@@ -169,15 +177,28 @@ class ICSPClient:
             )
             self.check_stop()
             auth_code = ""
+            body: dict[str, Any] | None = None
+            self.log("INFO", f"[ICSP] authCode response status={auth_resp.status_code}")
             if auth_resp.status_code == 302 and "Location" in auth_resp.headers:
                 auth_code = auth_resp.headers["Location"].split("authCode=")[-1]
             elif auth_resp.status_code == 200:
                 body = auth_resp.json()
-                if body.get("success") and body.get("data"):
+                if isinstance(body, dict):
+                    self.log("INFO", f"[ICSP] authCode response keys={sorted(body.keys())}")
+                if isinstance(body, dict) and body.get("success") and body.get("data"):
                     auth_code = str(body["data"])
 
             if not auth_code:
-                self.log("ERROR", "[ICSP] authCode not found, login failed")
+                detail = ""
+                if isinstance(body, dict):
+                    detail = str(body.get("message") or body.get("msg") or "").strip()
+                if detail:
+                    self._set_last_login_error(f"ICSP 登录失败：{detail}")
+                else:
+                    self._set_last_login_error(
+                        f"ICSP 登录失败：未获取到 authCode，状态码={auth_resp.status_code}"
+                    )
+                self.log("ERROR", f"[ICSP] authCode not found, login failed, reason={self.last_login_error}")
                 return False
 
             timestamp = str(int(time.time() * 1000))
@@ -203,6 +224,7 @@ class ICSPClient:
         except InterruptedError:
             raise
         except Exception as exc:
+            self._set_last_login_error(f"ICSP 登录请求异常：{exc}")
             self.log("ERROR", f"[ICSP] login failed: {exc}")
             return False
 
@@ -226,11 +248,13 @@ class ICSPClient:
             user_name = str(data.get("userName", "")).strip()
 
             if not user_id:
+                self.log("WARN", "[ICSP] current user query returned no user id")
                 return False
 
             self.user_info["userid"] = user_id
             self.user_info["usercode"] = user_code or login_username
             self.user_info["username"] = urllib.parse.quote(user_name or login_username)
+            self.log("INFO", "[ICSP] current user query succeeded")
             return True
         except InterruptedError:
             raise
@@ -593,7 +617,7 @@ def run_points_flow_export(
         logger("INFO", "Starting login to ICSP.")
     client = ICSPClient(logger=logger, stop_checker=stop_checker)
     if not client.login(username, password):
-        raise RuntimeError("ICSP \u767b\u5f55\u5931\u8d25\uff0c\u8bf7\u68c0\u67e5\u8d26\u53f7\u6216\u5bc6\u7801\u3002")
+        raise RuntimeError(client.last_login_error or "ICSP 登录失败，请检查账号或密码。")
 
     if logger:
         logger("INFO", "Starting points flow data fetch.")
@@ -622,7 +646,7 @@ def authenticate_icsp_user(
 ) -> ICSPAuthResult:
     client = ICSPClient(logger=logger)
     if not client.login(username, password):
-        raise RuntimeError("ICSP \u767b\u5f55\u5931\u8d25\uff0c\u8bf7\u68c0\u67e5\u8d26\u53f7\u6216\u5bc6\u7801\u3002")
+        raise RuntimeError(client.last_login_error or "ICSP 登录失败，请检查账号或密码。")
     if not client.has_serializable_auth_state():
         client.log("WARN", "[ICSP] reusable session build failed: login succeeded but cookies are empty")
         raise RuntimeError(

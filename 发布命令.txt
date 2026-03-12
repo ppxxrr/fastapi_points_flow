@@ -13,7 +13,7 @@ git add .
 git commit -m "add auth routes for icsp login"
 git push
 
-服务器：
+服务器(.venv)环境：
 cd /opt/fastapi_points_flow
 ./deploy.sh
 
