@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 
 from app.auth import (
@@ -15,6 +17,21 @@ from app.services.points_flow_service import PointsFlowExportService
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 auth_service = PointsFlowExportService()
+route_logger = logging.getLogger("points_flow.auth")
+
+
+def auth_log_callback(level: str, message: str) -> None:
+    normalized = level.upper()
+    if normalized in {"ERROR"}:
+        route_logger.error(message)
+        return
+    if normalized in {"WARN", "WARNING"}:
+        route_logger.warning(message)
+        return
+    if normalized in {"SUCCESS"}:
+        route_logger.info(message)
+        return
+    route_logger.info(message)
 
 
 @router.post("/login", response_model=AuthUserResponse)
@@ -23,8 +40,10 @@ def login(payload: AuthLoginRequest, response: Response) -> AuthUserResponse:
         auth_result = auth_service.authenticate_user(
             username=payload.username,
             password=payload.password,
+            log_callback=auth_log_callback,
         )
     except RuntimeError as exc:
+        route_logger.warning("ICSP login request failed: %s", exc)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
 
     session = auth_session_store.create_session(
@@ -35,6 +54,7 @@ def login(payload: AuthLoginRequest, response: Response) -> AuthUserResponse:
         icsp_auth_state=auth_result.auth_state,
     )
     set_auth_cookie(response, session.session_id)
+    route_logger.info("ICSP login request succeeded for user=%s", auth_result.username)
     return AuthUserResponse(**session.to_public_dict())
 
 
@@ -44,6 +64,7 @@ def logout(request: Request, response: Response) -> AuthLogoutResponse:
     if session_id:
         auth_session_store.delete_session(session_id)
     clear_auth_cookie(response)
+    route_logger.info("ICSP logout request completed")
     return AuthLogoutResponse(success=True)
 
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import mimetypes
 from pathlib import Path
 
@@ -17,6 +18,18 @@ EXPORT_DIR = BASE_DIR / "data" / "exports"
 
 router = APIRouter(prefix="/api/points-flow", tags=["points-flow"])
 task_manager = TaskManager(export_dir=EXPORT_DIR, service=PointsFlowExportService())
+route_logger = logging.getLogger("points_flow.tasks")
+
+
+def task_log_callback(level: str, message: str) -> None:
+    normalized = level.upper()
+    if normalized == "ERROR":
+        route_logger.error(message)
+        return
+    if normalized in {"WARN", "WARNING"}:
+        route_logger.warning(message)
+        return
+    route_logger.info(message)
 
 
 def serialize_task(task: dict) -> ExportTaskResponse:
@@ -49,8 +62,14 @@ def create_points_flow_task(
     try:
         refreshed_auth = task_manager.service.refresh_authenticated_session(
             auth_state=current_session.icsp_auth_state,
+            log_callback=task_log_callback,
         )
     except RuntimeError as exc:
+        route_logger.warning(
+            "Points-flow task creation rejected for user=%s: %s",
+            current_session.username,
+            exc,
+        )
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
 
     session_id = request.cookies.get(AUTH_COOKIE_NAME)
@@ -70,6 +89,7 @@ def create_points_flow_task(
         start_date=payload.start_date.isoformat(),
         end_date=payload.end_date.isoformat(),
     )
+    route_logger.info("Points-flow task created task_id=%s user=%s", task["task_id"], refreshed_auth.username)
     return serialize_task(task)
 
 
