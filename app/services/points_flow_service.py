@@ -12,9 +12,14 @@ from pathlib import Path
 from typing import Any, Callable, Sequence
 
 import requests
-from openpyxl import Workbook
-from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
-from openpyxl.utils import get_column_letter
+
+from app.utils.excel_export import (
+    DEFAULT_FIELD_FILES,
+    _read_text_with_fallback,
+    export_to_excel,
+    format_cell_value,
+    load_fields_from_sample,
+)
 
 
 ICSP_BASE = "https://icsp.scpgroup.com.cn"
@@ -29,9 +34,6 @@ PLAZA_BU_ID = 293
 POINT_FLOW_URL = ICSP_BASE + "/icsp-point/web/point/water/flow/queryList"
 PAGE_SIZE = 100
 MAX_PAGE_WORKERS = 8
-DEFAULT_FIELD_FILES = ("point_flow_fields.json", "point_flow_fields.txt")
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-
 LoggerCallback = Callable[[str, str], None]
 StopChecker = Callable[[], None]
 
@@ -49,68 +51,6 @@ class ICSPAuthResult:
     user_id: str
     user_code: str
     auth_state: dict[str, Any]
-
-
-def _read_text_with_fallback(path: Path) -> str:
-    for encoding in ("utf-8-sig", "utf-8", "gb18030", "gbk"):
-        try:
-            return path.read_text(encoding=encoding)
-        except Exception:
-            continue
-    return ""
-
-
-def load_fields_from_sample(base_dir: str | Path | None = None) -> list[str]:
-    root = Path(base_dir) if base_dir is not None else PROJECT_ROOT
-    candidates = [root / name for name in DEFAULT_FIELD_FILES]
-    try:
-        for path in sorted(root.iterdir()):
-            if path.is_file() and path.suffix.lower() in {".json", ".txt"}:
-                stem = path.stem.lower()
-                if "flow" in stem or "field" in stem:
-                    candidates.append(path)
-    except Exception:
-        pass
-
-    for sample_path in candidates:
-        if not sample_path.is_file():
-            continue
-        try:
-            raw = _read_text_with_fallback(sample_path).strip()
-            if not raw:
-                continue
-            sample = json.loads(raw.rstrip(","))
-            if isinstance(sample, dict):
-                return list(sample.keys())
-            if isinstance(sample, list) and all(isinstance(item, str) for item in sample):
-                return sample
-        except json.JSONDecodeError:
-            lines = [line.strip().strip(",") for line in raw.splitlines() if line.strip()]
-            if lines:
-                return lines
-        except Exception:
-            continue
-    return []
-
-
-def format_cell_value(key: str, value):
-    if value is None:
-        return ""
-    if key == "consumeAmount":
-        try:
-            return round(float(value) / 100, 2)
-        except Exception:
-            return value
-    if isinstance(value, (dict, list)):
-        return json.dumps(value, ensure_ascii=False)
-    if "time" in key.lower() and isinstance(value, (int, float)) and value > 10**12:
-        try:
-            return datetime.fromtimestamp(value / 1000).strftime("%Y-%m-%d %H:%M:%S")
-        except Exception:
-            return str(value)
-    return value
-
-
 class ICSPClient:
     def __init__(
         self,

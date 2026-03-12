@@ -5,7 +5,6 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from app.services.points_flow_service import (
-    DEFAULT_FIELD_FILES,
     ICSP_BASE,
     ICSP_CLIENT_ID,
     ICSP_SALT,
@@ -17,10 +16,13 @@ from app.services.points_flow_service import (
     POINT_FLOW_URL,
     TENANT_ID,
     ICSPClient,
+    run_points_flow_export,
+)
+from app.utils.excel_export import (
+    DEFAULT_FIELD_FILES,
     export_to_excel,
     format_cell_value,
     load_fields_from_sample,
-    run_points_flow_export,
 )
 
 
