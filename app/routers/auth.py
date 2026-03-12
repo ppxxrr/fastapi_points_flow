@@ -17,7 +17,7 @@ from app.services.points_flow_service import PointsFlowExportService
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 auth_service = PointsFlowExportService()
-route_logger = logging.getLogger("points_flow.auth")
+route_logger = logging.getLogger("uvicorn.error")
 
 
 def auth_log_callback(level: str, message: str) -> None:

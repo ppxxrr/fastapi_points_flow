@@ -18,7 +18,7 @@ EXPORT_DIR = BASE_DIR / "data" / "exports"
 
 router = APIRouter(prefix="/api/points-flow", tags=["points-flow"])
 task_manager = TaskManager(export_dir=EXPORT_DIR, service=PointsFlowExportService())
-route_logger = logging.getLogger("points_flow.tasks")
+route_logger = logging.getLogger("uvicorn.error")
 
 
 def task_log_callback(level: str, message: str) -> None:

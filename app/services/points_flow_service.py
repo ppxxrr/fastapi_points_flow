@@ -189,15 +189,14 @@ class ICSPClient:
             )
             self.check_stop()
 
-            user_resp = self.session.get(
-                f"{ICSP_BASE}/icsp-employee/web/login/query/v2?_t={timestamp}",
-                timeout=15,
-            )
-            if user_resp.status_code == 200:
-                data = user_resp.json().get("data", {})
-                self.user_info["userid"] = str(data.get("id", ""))
-                self.user_info["usercode"] = str(data.get("loginCode", username))
-                self.user_info["username"] = urllib.parse.quote(str(data.get("userName", "")))
+            cookie_keys = self._cookie_keys()
+            if cookie_keys:
+                self.log("INFO", f"[ICSP] login succeeded and cookies acquired, cookie_keys={cookie_keys}")
+            else:
+                self.log("WARN", "[ICSP] login succeeded but cookies are empty")
+
+            if not self.probe_current_user(username):
+                self.log("WARN", "[ICSP] login succeeded but current user context could not be confirmed")
 
             self.log("SUCCESS", "[ICSP] login succeeded")
             return True
@@ -239,6 +238,23 @@ class ICSPClient:
             self.log("WARN", f"[ICSP] failed to query current user info: {exc}")
             return False
 
+    def probe_current_user(
+        self,
+        login_username: str = "",
+        *,
+        attempts: int = 3,
+        delay_seconds: float = 0.5,
+    ) -> bool:
+        for attempt in range(1, attempts + 1):
+            if self.query_current_user(login_username):
+                if attempt > 1:
+                    self.log("INFO", f"[ICSP] current user query succeeded on retry {attempt}/{attempts}")
+                return True
+            if attempt < attempts:
+                self.log("INFO", f"[ICSP] current user query retry scheduled {attempt + 1}/{attempts}")
+                time.sleep(delay_seconds)
+        return False
+
     def has_serializable_auth_state(self) -> bool:
         return any(cookie.name and cookie.value for cookie in self.session.cookies)
 
@@ -248,17 +264,25 @@ class ICSPClient:
             return True
 
         self.log("INFO", "[ICSP] resolving authenticated session context")
-        if self.query_current_user(login_username):
+        if self.probe_current_user(login_username):
             return True
 
         return False
 
     def validate_authenticated_session(self, login_username: str = "") -> bool:
         self.log("INFO", "[ICSP] validating recovered authenticated session")
-        if not self.has_serializable_auth_state():
-            self.log("WARN", "[ICSP] no reusable authentication cookies found")
+        cookie_keys = self._cookie_keys()
+        if not cookie_keys:
+            self.log("WARN", "[ICSP] validation failed: login succeeded but cookies are empty")
             return False
-        return self.ensure_authenticated_session(login_username)
+
+        self.log("INFO", f"[ICSP] validation using cookie_keys={cookie_keys}")
+        validated = self.probe_current_user(login_username)
+        if validated:
+            self.log("SUCCESS", "[ICSP] recovered session validation succeeded")
+        else:
+            self.log("WARN", "[ICSP] validation failed: recovered session could not pass query/v2")
+        return validated
 
     def get_profile(self, login_username: str) -> dict[str, str]:
         display_name = urllib.parse.unquote(self.user_info.get("username", "")) or login_username
@@ -281,6 +305,7 @@ class ICSPClient:
             }
             for cookie in self.session.cookies
         ]
+        self.log("INFO", f"[ICSP] exporting serializable auth state, cookie_keys={self._cookie_keys()}")
         return {
             "login_username": login_username,
             "authenticated_at": datetime.now().isoformat(),
@@ -305,6 +330,7 @@ class ICSPClient:
             "usercode": str(source_user_info.get("usercode", "")),
             "username": str(source_user_info.get("username", "")),
         }
+        client.log("INFO", f"[ICSP] restored client from existing session, cookie_keys={client._cookie_keys()}")
         return client
 
     @classmethod
@@ -332,6 +358,11 @@ class ICSPClient:
                 expires=item.get("expires"),
             )
             client.session.cookies.set_cookie(cookie)
+        cookie_keys = client._cookie_keys()
+        if cookie_keys:
+            client.log("INFO", f"[ICSP] restored auth state from serialized cookies, cookie_keys={cookie_keys}")
+        else:
+            client.log("WARN", "[ICSP] restore failed: serialized auth state contains no cookies")
         return client
 
     def _api_headers(self) -> dict[str, str]:
@@ -593,13 +624,20 @@ def authenticate_icsp_user(
     if not client.login(username, password):
         raise RuntimeError("ICSP \u767b\u5f55\u5931\u8d25\uff0c\u8bf7\u68c0\u67e5\u8d26\u53f7\u6216\u5bc6\u7801\u3002")
     if not client.has_serializable_auth_state():
+        client.log("WARN", "[ICSP] reusable session build failed: login succeeded but cookies are empty")
         raise RuntimeError(
             "ICSP \u767b\u5f55\u6210\u529f\uff0c\u4f46\u672a\u83b7\u53d6\u5230\u53ef\u590d\u7528\u7684\u8ba4\u8bc1\u4fe1\u606f\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002"
         )
 
     serialized_auth_state = client.export_auth_state(username)
     recovered_client = ICSPClient.from_auth_state(serialized_auth_state, logger=logger)
+    if not recovered_client.has_serializable_auth_state():
+        recovered_client.log("WARN", "[ICSP] reusable session build failed: cookies restore failed")
+        raise RuntimeError(
+            "ICSP \u767b\u5f55\u6210\u529f\uff0c\u4f46 cookies \u6062\u590d\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002"
+        )
     if not recovered_client.validate_authenticated_session(username):
+        recovered_client.log("WARN", "[ICSP] reusable session build failed: recovered session validation failed")
         raise RuntimeError(
             "ICSP \u767b\u5f55\u6210\u529f\uff0c\u4f46\u672a\u80fd\u5efa\u7acb\u53ef\u590d\u7528\u4f1a\u8bdd\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002"
         )
