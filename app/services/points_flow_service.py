@@ -153,6 +153,20 @@ class ICSPClient:
     def _cookie_keys(self) -> list[str]:
         return sorted({cookie.name for cookie in self.session.cookies if cookie.name})
 
+    def _outgoing_cookie_keys_for(self, url: str) -> list[str]:
+        request = requests.Request("GET", url)
+        prepared = self.session.prepare_request(request)
+        cookie_header = prepared.headers.get("Cookie", "")
+        if not cookie_header:
+            return []
+
+        cookie_keys: list[str] = []
+        for chunk in cookie_header.split(";"):
+            name = chunk.strip().split("=", 1)[0].strip()
+            if name:
+                cookie_keys.append(name)
+        return sorted(set(cookie_keys))
+
     def _set_last_login_error(self, message: str) -> None:
         self.last_login_error = message
 
@@ -231,10 +245,13 @@ class ICSPClient:
     def query_current_user(self, login_username: str = "") -> bool:
         self.check_stop()
         timestamp = str(int(time.time() * 1000))
+        target_url = f"{ICSP_BASE}/icsp-employee/web/login/query/v2?_t={timestamp}"
+        outgoing_cookie_keys = self._outgoing_cookie_keys_for(target_url)
+        self.log("INFO", f"[ICSP] current user query outgoing_cookie_keys={outgoing_cookie_keys}")
 
         try:
             response = self.session.get(
-                f"{ICSP_BASE}/icsp-employee/web/login/query/v2?_t={timestamp}",
+                target_url,
                 timeout=15,
             )
             response.raise_for_status()
@@ -301,6 +318,13 @@ class ICSPClient:
             return False
 
         self.log("INFO", f"[ICSP] validation using cookie_keys={cookie_keys}")
+        self.log(
+            "INFO",
+            (
+                "[ICSP] validation outgoing_cookie_keys="
+                f"{self._outgoing_cookie_keys_for(f'{ICSP_BASE}/icsp-employee/web/login/query/v2')}"
+            ),
+        )
         validated = self.probe_current_user(login_username)
         if validated:
             self.log("SUCCESS", "[ICSP] recovered session validation succeeded")
@@ -373,15 +397,15 @@ class ICSPClient:
         for item in auth_state.get("cookies") or []:
             if not isinstance(item, dict):
                 continue
-            cookie = requests.cookies.create_cookie(
-                name=str(item.get("name", "")),
-                value=str(item.get("value", "")),
-                domain=item.get("domain"),
-                path=str(item.get("path") or "/"),
-                secure=bool(item.get("secure", False)),
-                expires=item.get("expires"),
-            )
-            client.session.cookies.set_cookie(cookie)
+            name = str(item.get("name", "")).strip()
+            value = str(item.get("value", ""))
+            if not name or not value:
+                continue
+
+            # Restore the minimum cookie information only. In practice the ICSP
+            # session is recovered more reliably when requests can re-scope these
+            # cookies for the target host instead of forcing the original domain/path.
+            client.session.cookies.set(name, value)
         cookie_keys = client._cookie_keys()
         if cookie_keys:
             client.log("INFO", f"[ICSP] restored auth state from serialized cookies, cookie_keys={cookie_keys}")
