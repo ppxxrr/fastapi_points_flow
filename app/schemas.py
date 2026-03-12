@@ -6,10 +6,26 @@ from pydantic import BaseModel, Field
 
 
 class ExportTaskCreateRequest(BaseModel):
-    username: str = Field(..., min_length=1, description="ICSP username")
-    password: str = Field(..., min_length=1, description="ICSP password")
     start_date: date
     end_date: date
+
+
+class AuthLoginRequest(BaseModel):
+    username: str = Field(..., min_length=1, description="ICSP username")
+    password: str = Field(..., min_length=1, description="ICSP password")
+
+
+class AuthUserResponse(BaseModel):
+    username: str
+    display_name: str
+    user_id: str
+    user_code: str
+    created_at: str
+    updated_at: str
+
+
+class AuthLogoutResponse(BaseModel):
+    success: bool
 
 
 class TaskParamsResponse(BaseModel):

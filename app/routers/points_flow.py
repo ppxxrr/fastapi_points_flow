@@ -3,9 +3,10 @@ from __future__ import annotations
 import mimetypes
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import FileResponse
 
+from app.auth import get_current_auth_session
 from app.schemas import ExportTaskCreateRequest, ExportTaskResponse
 from app.services.points_flow_service import PointsFlowExportService
 from app.task_manager import TaskManager
@@ -34,7 +35,10 @@ def serialize_task(task: dict) -> ExportTaskResponse:
 
 
 @router.post("/tasks", response_model=ExportTaskResponse, status_code=status.HTTP_202_ACCEPTED)
-def create_points_flow_task(payload: ExportTaskCreateRequest) -> ExportTaskResponse:
+def create_points_flow_task(
+    payload: ExportTaskCreateRequest,
+    current_session=Depends(get_current_auth_session),
+) -> ExportTaskResponse:
     if payload.start_date > payload.end_date:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -42,8 +46,8 @@ def create_points_flow_task(payload: ExportTaskCreateRequest) -> ExportTaskRespo
         )
 
     task = task_manager.create_task(
-        username=payload.username,
-        password=payload.password,
+        owner_username=current_session.username,
+        auth_state=current_session.icsp_auth_state,
         start_date=payload.start_date.isoformat(),
         end_date=payload.end_date.isoformat(),
     )
@@ -51,16 +55,16 @@ def create_points_flow_task(payload: ExportTaskCreateRequest) -> ExportTaskRespo
 
 
 @router.get("/tasks/{task_id}", response_model=ExportTaskResponse)
-def get_points_flow_task(task_id: str) -> ExportTaskResponse:
-    task = task_manager.get_task(task_id)
+def get_points_flow_task(task_id: str, current_session=Depends(get_current_auth_session)) -> ExportTaskResponse:
+    task = task_manager.get_task(task_id, owner_username=current_session.username)
     if task is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="task not found")
     return serialize_task(task)
 
 
 @router.get("/downloads/{filename}")
-def download_points_flow_file(filename: str) -> FileResponse:
-    file_path = task_manager.get_download_path_by_filename(filename)
+def download_points_flow_file(filename: str, current_session=Depends(get_current_auth_session)) -> FileResponse:
+    file_path = task_manager.get_download_path_by_filename(filename, owner_username=current_session.username)
     if file_path is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="export file not found")
 

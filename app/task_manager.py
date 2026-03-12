@@ -5,6 +5,7 @@ from copy import deepcopy
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 from uuid import uuid4
 
 from app.services.points_flow_service import ExportJobResult, PointsFlowExportService
@@ -38,6 +39,7 @@ class TaskRecord:
     status: str
     created_at: str
     updated_at: str
+    owner_username: str
     params: TaskParams
     logs: list[TaskLog] = field(default_factory=list)
     result_file: str | None = None
@@ -45,7 +47,9 @@ class TaskRecord:
     error: str | None = None
 
     def to_dict(self) -> dict:
-        return asdict(self)
+        payload = asdict(self)
+        payload.pop("owner_username", None)
+        return payload
 
 
 class TaskManager:
@@ -56,7 +60,13 @@ class TaskManager:
         self._tasks: dict[str, TaskRecord] = {}
         self._lock = threading.Lock()
 
-    def create_task(self, username: str, password: str, start_date: str, end_date: str) -> dict:
+    def create_task(
+        self,
+        owner_username: str,
+        auth_state: dict[str, Any],
+        start_date: str,
+        end_date: str,
+    ) -> dict:
         task_id = uuid4().hex
         now = utc_now_iso()
         task = TaskRecord(
@@ -65,8 +75,9 @@ class TaskManager:
             status="pending",
             created_at=now,
             updated_at=now,
+            owner_username=owner_username,
             params=TaskParams(
-                username=username,
+                username=owner_username,
                 start_date=start_date,
                 end_date=end_date,
             ),
@@ -79,26 +90,40 @@ class TaskManager:
 
         worker = threading.Thread(
             target=self._run_task,
-            args=(task, username, password, start_date, end_date),
+            args=(task, deepcopy(auth_state), start_date, end_date),
             daemon=True,
             name=f"points-flow-{task_id[:8]}",
         )
         worker.start()
         return self.get_task(task_id)
 
-    def get_task(self, task_id: str) -> dict | None:
+    def get_task(self, task_id: str, owner_username: str | None = None) -> dict | None:
         with self._lock:
             task = self._tasks.get(task_id)
             if task is None:
                 return None
+            if owner_username is not None and task.owner_username != owner_username:
+                return None
             return deepcopy(task.to_dict())
 
-    def get_download_path_by_filename(self, filename: str) -> Path | None:
+    def get_download_path_by_filename(self, filename: str, owner_username: str | None = None) -> Path | None:
         export_root = self.export_dir.resolve()
         file_path = (export_root / filename).resolve()
         if export_root not in file_path.parents:
             return None
         if not file_path.is_file():
+            return None
+        with self._lock:
+            matched_task = next(
+                (
+                    task
+                    for task in self._tasks.values()
+                    if task.result_file == filename
+                    and (owner_username is None or task.owner_username == owner_username)
+                ),
+                None,
+            )
+        if matched_task is None:
             return None
         return file_path
 
@@ -143,8 +168,7 @@ class TaskManager:
     def _run_task(
         self,
         task: TaskRecord,
-        username: str,
-        password: str,
+        auth_state: dict[str, Any],
         start_date: str,
         end_date: str,
     ) -> None:
@@ -154,8 +178,7 @@ class TaskManager:
         try:
             result = self.service.run_export(
                 task_id=task.task_id,
-                username=username,
-                password=password,
+                auth_state=auth_state,
                 start_date=start_date,
                 end_date=end_date,
                 export_dir=self.export_dir,

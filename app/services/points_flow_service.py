@@ -9,7 +9,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Callable, Sequence
+from typing import Any, Callable, Sequence
 
 import requests
 from openpyxl import Workbook
@@ -40,6 +40,15 @@ StopChecker = Callable[[], None]
 class ExportJobResult:
     output_file: Path
     result_count: int
+
+
+@dataclass(slots=True)
+class ICSPAuthResult:
+    username: str
+    display_name: str
+    user_id: str
+    user_code: str
+    auth_state: dict[str, Any]
 
 
 def _read_text_with_fallback(path: Path) -> str:
@@ -197,6 +206,60 @@ class ICSPClient:
         except Exception as exc:
             self.log("ERROR", f"[ICSP] login failed: {exc}")
             return False
+
+    def get_profile(self, login_username: str) -> dict[str, str]:
+        display_name = urllib.parse.unquote(self.user_info.get("username", "")) or login_username
+        return {
+            "username": login_username,
+            "display_name": display_name,
+            "user_id": self.user_info.get("userid", ""),
+            "user_code": self.user_info.get("usercode", login_username),
+        }
+
+    def export_auth_state(self, login_username: str) -> dict[str, Any]:
+        serialized_cookies = [
+            {
+                "name": cookie.name,
+                "value": cookie.value,
+                "domain": cookie.domain,
+                "path": cookie.path,
+                "secure": cookie.secure,
+                "expires": cookie.expires,
+            }
+            for cookie in self.session.cookies
+        ]
+        return {
+            "login_username": login_username,
+            "user_info": dict(self.user_info),
+            "cookies": serialized_cookies,
+        }
+
+    @classmethod
+    def from_auth_state(
+        cls,
+        auth_state: dict[str, Any],
+        logger: LoggerCallback | None = None,
+        stop_checker: StopChecker | None = None,
+    ) -> "ICSPClient":
+        client = cls(logger=logger, stop_checker=stop_checker)
+        client.user_info = {
+            "userid": str((auth_state.get("user_info") or {}).get("userid", "")),
+            "usercode": str((auth_state.get("user_info") or {}).get("usercode", "")),
+            "username": str((auth_state.get("user_info") or {}).get("username", "")),
+        }
+        for item in auth_state.get("cookies") or []:
+            if not isinstance(item, dict):
+                continue
+            cookie = requests.cookies.create_cookie(
+                name=str(item.get("name", "")),
+                value=str(item.get("value", "")),
+                domain=item.get("domain"),
+                path=str(item.get("path") or "/"),
+                secure=bool(item.get("secure", False)),
+                expires=item.get("expires"),
+            )
+            client.session.cookies.set_cookie(cookie)
+        return client
 
     def _api_headers(self) -> dict[str, str]:
         return {
@@ -448,21 +511,86 @@ def run_points_flow_export(
     return ExportJobResult(output_file=output_file, result_count=len(rows))
 
 
+def authenticate_icsp_user(
+    username: str,
+    password: str,
+    logger: LoggerCallback | None = None,
+) -> ICSPAuthResult:
+    client = ICSPClient(logger=logger)
+    if not client.login(username, password):
+        raise RuntimeError("ICSP login failed, please check username or password.")
+
+    profile = client.get_profile(username)
+    return ICSPAuthResult(
+        username=profile["username"],
+        display_name=profile["display_name"],
+        user_id=profile["user_id"],
+        user_code=profile["user_code"],
+        auth_state=client.export_auth_state(username),
+    )
+
+
+def run_points_flow_export_with_auth_state(
+    auth_state: dict[str, Any],
+    start_date: str,
+    end_date: str,
+    output_dir: str | Path,
+    logger: LoggerCallback | None = None,
+    stop_checker: StopChecker | None = None,
+    file_tag: str | None = None,
+) -> ExportJobResult:
+    client = ICSPClient.from_auth_state(auth_state, logger=logger, stop_checker=stop_checker)
+    if not client.user_info.get("userid"):
+        raise RuntimeError("ICSP authenticated session is invalid, please log in again.")
+
+    if logger:
+        logger("INFO", "Using authenticated ICSP session.")
+        logger("INFO", "Starting points flow data fetch.")
+    rows = client.fetch_point_flow(start_date, end_date)
+
+    if logger:
+        logger("INFO", "Starting Excel export.")
+    fields = load_fields_from_sample()
+    output_file = export_to_excel(
+        rows=rows,
+        fields=fields,
+        start_date=start_date,
+        end_date=end_date,
+        output_dir=output_dir,
+        file_tag=file_tag,
+    )
+    if logger:
+        logger("SUCCESS", f"Excel export completed: {output_file.name}")
+    return ExportJobResult(output_file=output_file, result_count=len(rows))
+
+
 class PointsFlowExportService:
+    def authenticate_user(
+        self,
+        username: str,
+        password: str,
+        log_callback: LoggerCallback | None = None,
+    ) -> ICSPAuthResult:
+        if log_callback:
+            log_callback("INFO", "Starting ICSP login verification.")
+        return authenticate_icsp_user(
+            username=username,
+            password=password,
+            logger=log_callback,
+        )
+
     def run_export(
         self,
         task_id: str,
-        username: str,
-        password: str,
+        auth_state: dict[str, Any],
         start_date: str,
         end_date: str,
         export_dir: str | Path,
         log_callback: LoggerCallback | None = None,
     ) -> ExportJobResult:
         file_tag = task_id[:8] if task_id else None
-        return run_points_flow_export(
-            username=username,
-            password=password,
+        return run_points_flow_export_with_auth_state(
+            auth_state=auth_state,
             start_date=start_date,
             end_date=end_date,
             output_dir=export_dir,
