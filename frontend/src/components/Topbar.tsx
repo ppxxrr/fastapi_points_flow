@@ -11,7 +11,7 @@ export default function Topbar({ operatorName, onLogout }: TopbarProps) {
                     Smart Workbench
                 </p>
                 <h1 className="mt-2 text-[2.25rem] font-semibold tracking-[-0.055em] text-slate-950">
-                    积分导出
+                    会员积分流水导出
                 </h1>
             </div>
 
