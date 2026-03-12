@@ -207,6 +207,49 @@ class ICSPClient:
             self.log("ERROR", f"[ICSP] login failed: {exc}")
             return False
 
+    def query_current_user(self, login_username: str = "") -> bool:
+        self.check_stop()
+        timestamp = str(int(time.time() * 1000))
+
+        try:
+            response = self.session.get(
+                f"{ICSP_BASE}/icsp-employee/web/login/query/v2?_t={timestamp}",
+                timeout=15,
+            )
+            response.raise_for_status()
+            payload = response.json()
+            data = payload.get("data", {}) if isinstance(payload, dict) else {}
+            if not isinstance(data, dict):
+                data = {}
+
+            user_id = str(data.get("id", "")).strip()
+            user_code = str(data.get("loginCode", login_username or "")).strip()
+            user_name = str(data.get("userName", "")).strip()
+
+            if not user_id:
+                return False
+
+            self.user_info["userid"] = user_id
+            self.user_info["usercode"] = user_code or login_username
+            self.user_info["username"] = urllib.parse.quote(user_name or login_username)
+            return True
+        except InterruptedError:
+            raise
+        except Exception as exc:
+            self.log("WARN", f"[ICSP] failed to query current user info: {exc}")
+            return False
+
+    def ensure_authenticated_session(self, login_username: str = "") -> bool:
+        self.check_stop()
+        if self.user_info.get("userid") and self.user_info.get("usercode") and self.user_info.get("username"):
+            return True
+
+        self.log("INFO", "[ICSP] resolving authenticated session context")
+        if self.query_current_user(login_username):
+            return True
+
+        return False
+
     def get_profile(self, login_username: str) -> dict[str, str]:
         display_name = urllib.parse.unquote(self.user_info.get("username", "")) or login_username
         return {
@@ -233,6 +276,25 @@ class ICSPClient:
             "user_info": dict(self.user_info),
             "cookies": serialized_cookies,
         }
+
+    @classmethod
+    def from_session(
+        cls,
+        session: requests.Session,
+        user_info: dict[str, Any] | None = None,
+        logger: LoggerCallback | None = None,
+        stop_checker: StopChecker | None = None,
+    ) -> "ICSPClient":
+        client = cls(logger=logger, stop_checker=stop_checker)
+        client.session.headers.update(session.headers)
+        client.session.cookies.update(session.cookies)
+        source_user_info = user_info or {}
+        client.user_info = {
+            "userid": str(source_user_info.get("userid", "")),
+            "usercode": str(source_user_info.get("usercode", "")),
+            "username": str(source_user_info.get("username", "")),
+        }
+        return client
 
     @classmethod
     def from_auth_state(
@@ -489,7 +551,7 @@ def run_points_flow_export(
         logger("INFO", "Starting login to ICSP.")
     client = ICSPClient(logger=logger, stop_checker=stop_checker)
     if not client.login(username, password):
-        raise RuntimeError("ICSP login failed, please check username or password.")
+        raise RuntimeError("ICSP \u767b\u5f55\u5931\u8d25\uff0c\u8bf7\u68c0\u67e5\u8d26\u53f7\u6216\u5bc6\u7801\u3002")
 
     if logger:
         logger("INFO", "Starting points flow data fetch.")
@@ -518,7 +580,11 @@ def authenticate_icsp_user(
 ) -> ICSPAuthResult:
     client = ICSPClient(logger=logger)
     if not client.login(username, password):
-        raise RuntimeError("ICSP login failed, please check username or password.")
+        raise RuntimeError("ICSP \u767b\u5f55\u5931\u8d25\uff0c\u8bf7\u68c0\u67e5\u8d26\u53f7\u6216\u5bc6\u7801\u3002")
+    if not client.ensure_authenticated_session(username):
+        raise RuntimeError(
+            "ICSP \u767b\u5f55\u6210\u529f\uff0c\u4f46\u672a\u80fd\u5efa\u7acb\u53ef\u590d\u7528\u4f1a\u8bdd\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002"
+        )
 
     profile = client.get_profile(username)
     return ICSPAuthResult(
@@ -540,8 +606,9 @@ def run_points_flow_export_with_auth_state(
     file_tag: str | None = None,
 ) -> ExportJobResult:
     client = ICSPClient.from_auth_state(auth_state, logger=logger, stop_checker=stop_checker)
-    if not client.user_info.get("userid"):
-        raise RuntimeError("ICSP authenticated session is invalid, please log in again.")
+    login_username = str(auth_state.get("login_username", "")).strip()
+    if not client.ensure_authenticated_session(login_username):
+        raise RuntimeError("\u767b\u5f55\u5931\u6548\uff0c\u8bf7\u91cd\u65b0\u767b\u5f55")
 
     if logger:
         logger("INFO", "Using authenticated ICSP session.")
@@ -564,6 +631,26 @@ def run_points_flow_export_with_auth_state(
     return ExportJobResult(output_file=output_file, result_count=len(rows))
 
 
+def refresh_icsp_auth_state(
+    auth_state: dict[str, Any],
+    logger: LoggerCallback | None = None,
+) -> ICSPAuthResult:
+    login_username = str(auth_state.get("login_username", "")).strip()
+    client = ICSPClient.from_auth_state(auth_state, logger=logger)
+    if not client.ensure_authenticated_session(login_username):
+        raise RuntimeError("\u767b\u5f55\u5931\u6548\uff0c\u8bf7\u91cd\u65b0\u767b\u5f55")
+
+    profile = client.get_profile(login_username or client.user_info.get("usercode", ""))
+    refreshed_auth_state = client.export_auth_state(profile["username"])
+    return ICSPAuthResult(
+        username=profile["username"],
+        display_name=profile["display_name"],
+        user_id=profile["user_id"],
+        user_code=profile["user_code"],
+        auth_state=refreshed_auth_state,
+    )
+
+
 class PointsFlowExportService:
     def authenticate_user(
         self,
@@ -576,6 +663,16 @@ class PointsFlowExportService:
         return authenticate_icsp_user(
             username=username,
             password=password,
+            logger=log_callback,
+        )
+
+    def refresh_authenticated_session(
+        self,
+        auth_state: dict[str, Any],
+        log_callback: LoggerCallback | None = None,
+    ) -> ICSPAuthResult:
+        return refresh_icsp_auth_state(
+            auth_state=auth_state,
             logger=log_callback,
         )
 

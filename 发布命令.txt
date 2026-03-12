@@ -6,3 +6,13 @@ pip install -r requirements.txt
 sudo systemctl restart myfastapi
 sudo systemctl status myfastapi
 journalctl -u myfastapi -n 50 --no-pager
+
+
+本地：
+git add .
+git commit -m "add auth routes for icsp login"
+git push
+
+服务器：
+cd /opt/fastapi_points_flow
+./deploy.sh

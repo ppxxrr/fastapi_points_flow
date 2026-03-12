@@ -93,6 +93,35 @@ class AuthSessionStore:
         with self._lock:
             self._sessions.pop(session_id, None)
 
+    def update_session_auth_state(
+        self,
+        session_id: str,
+        icsp_auth_state: dict[str, Any],
+        *,
+        username: str | None = None,
+        display_name: str | None = None,
+        user_id: str | None = None,
+        user_code: str | None = None,
+    ) -> AuthSession | None:
+        with self._lock:
+            session = self._sessions.get(session_id)
+            if session is None:
+                return None
+
+            session.icsp_auth_state = deepcopy(icsp_auth_state)
+            if username is not None:
+                session.username = username
+            if display_name is not None:
+                session.display_name = display_name
+            if user_id is not None:
+                session.user_id = user_id
+            if user_code is not None:
+                session.user_code = user_code
+
+            session.updated_at = utc_now_iso()
+            session.expires_at = time.time() + AUTH_SESSION_MAX_AGE
+            return session
+
 
 auth_session_store = AuthSessionStore()
 
