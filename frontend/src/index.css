@@ -4,7 +4,13 @@
 
 :root {
     color-scheme: light;
-    font-family: "DengXian", "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", sans-serif;
+    font-family:
+        "SF Pro SC",
+        "PingFang SC",
+        "Hiragino Sans GB",
+        "Source Han Sans SC",
+        "Microsoft YaHei",
+        sans-serif;
     background-color: #f8fbff;
     color: #0f172a;
     text-rendering: optimizeLegibility;
@@ -35,6 +41,19 @@ input,
 textarea,
 select {
     font: inherit;
+}
+
+h1,
+h2,
+h3,
+h4 {
+    font-family:
+        "SF Pro Display",
+        "SF Pro SC",
+        "PingFang SC",
+        "Hiragino Sans GB",
+        "Source Han Sans SC",
+        sans-serif;
 }
 
 input[type="date"]::-webkit-calendar-picker-indicator {
