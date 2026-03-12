@@ -3,7 +3,6 @@ import { type FormEvent, useState } from "react";
 import { useAuth } from "../auth/AuthContext";
 import LoginBackground from "../components/LoginBackground";
 
-
 function FieldIcon({ kind }: { kind: "user" | "lock" }) {
     if (kind === "lock") {
         return (
@@ -22,7 +21,6 @@ function FieldIcon({ kind }: { kind: "user" | "lock" }) {
     );
 }
 
-
 function BrandMark() {
     return (
         <div className="flex h-14 w-14 items-center justify-center rounded-[1.2rem] bg-gradient-to-br from-sky-400 via-blue-500 to-violet-500 shadow-[0_18px_48px_rgba(88,123,255,0.28)] ring-1 ring-white/65">
@@ -33,7 +31,6 @@ function BrandMark() {
         </div>
     );
 }
-
 
 export default function LoginPage() {
     const { login, isLoggingIn, loginError, clearLoginError } = useAuth();
@@ -49,34 +46,34 @@ export default function LoginPage() {
     }
 
     return (
-        <div className="relative flex min-h-screen items-center justify-center overflow-hidden px-6 py-8">
+        <div className="relative flex min-h-screen items-center justify-center overflow-hidden px-6 py-10">
             <LoginBackground />
 
-            <div className="relative">
-                <div className="pointer-events-none absolute inset-x-10 inset-y-8 rounded-[2.2rem] bg-[radial-gradient(circle,rgba(96,165,250,0.22),rgba(129,140,248,0.08),transparent_68%)] blur-2xl" />
+            <div className="relative w-full max-w-[34rem]">
+                <div className="pointer-events-none absolute inset-x-8 inset-y-7 rounded-[2.3rem] bg-[radial-gradient(circle,rgba(96,165,250,0.24),rgba(129,140,248,0.1),transparent_70%)] blur-2xl" />
 
-                <div className="relative w-full max-w-[27rem] rounded-[2rem] border border-white/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.9),rgba(246,249,255,0.78))] px-8 py-7 shadow-[0_34px_100px_rgba(71,93,160,0.16)] backdrop-blur-[24px]">
-                    <div className="pointer-events-none absolute inset-0 rounded-[2rem] bg-[radial-gradient(circle_at_top_right,_rgba(129,140,248,0.12),_transparent_28%),radial-gradient(circle_at_bottom_left,_rgba(56,189,248,0.07),_transparent_28%)]" />
+                <div className="relative mx-auto w-full max-w-[32rem] rounded-[2.1rem] border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.76),rgba(246,249,255,0.56))] px-8 py-7 shadow-[0_34px_100px_rgba(71,93,160,0.14)] backdrop-blur-[34px]">
+                    <div className="pointer-events-none absolute inset-0 rounded-[2.1rem] bg-[radial-gradient(circle_at_top_right,_rgba(129,140,248,0.12),_transparent_28%),radial-gradient(circle_at_bottom_left,_rgba(56,189,248,0.07),_transparent_28%)]" />
 
-                    <div className="relative mb-6 flex flex-col items-center text-center">
+                    <div className="relative mb-7 flex flex-col items-center text-center">
                         <BrandMark />
-                        <div className="mt-4 inline-flex items-center rounded-full border border-blue-100 bg-white/85 px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.24em] text-blue-600 shadow-[0_8px_20px_rgba(129,140,248,0.1)]">
+                        <div className="mt-4 inline-flex items-center rounded-full border border-blue-100/70 bg-white/74 px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.24em] text-blue-600 shadow-[0_8px_20px_rgba(129,140,248,0.1)]">
                             Smart Workbench
                         </div>
-                        <h1 className="mt-4 text-[2rem] font-semibold tracking-[-0.05em] text-slate-950">
+                        <h1 className="mt-4 text-[2.05rem] font-semibold tracking-[-0.05em] text-slate-950">
                             智能工作台
                         </h1>
                     </div>
 
                     <form className="relative space-y-4" onSubmit={handleSubmit}>
-                        <div className="space-y-2">
+                        <div className="grid grid-cols-[4rem_minmax(0,1fr)] items-center gap-3">
                             <label className="text-sm font-medium text-slate-800">账号</label>
                             <div className="relative">
-                                <div className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2">
+                                <div className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2">
                                     <FieldIcon kind="user" />
                                 </div>
                                 <input
-                                    className="h-11 w-full rounded-[1.05rem] border border-slate-200/80 bg-white/90 pl-11 pr-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                                    className="h-10 w-full rounded-[1.05rem] border border-slate-200/75 bg-white/80 pl-10.5 pr-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
                                     placeholder="请输入账号"
                                     value={username}
                                     onChange={(event) => {
@@ -88,14 +85,14 @@ export default function LoginPage() {
                             </div>
                         </div>
 
-                        <div className="space-y-2">
+                        <div className="grid grid-cols-[4rem_minmax(0,1fr)] items-center gap-3">
                             <label className="text-sm font-medium text-slate-800">密码</label>
                             <div className="relative">
-                                <div className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2">
+                                <div className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2">
                                     <FieldIcon kind="lock" />
                                 </div>
                                 <input
-                                    className="h-11 w-full rounded-[1.05rem] border border-slate-200/80 bg-white/90 pl-11 pr-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                                    className="h-10 w-full rounded-[1.05rem] border border-slate-200/75 bg-white/80 pl-10.5 pr-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
                                     placeholder="请输入密码"
                                     type="password"
                                     value={password}
@@ -115,7 +112,7 @@ export default function LoginPage() {
                         )}
 
                         <button
-                            className="h-11 w-full cursor-pointer rounded-[1.05rem] bg-gradient-to-r from-sky-500 via-blue-600 to-violet-500 text-sm font-medium text-white shadow-[0_18px_40px_rgba(79,113,255,0.28)] transition hover:brightness-[1.04] focus:outline-none focus:ring-4 focus:ring-blue-200 disabled:cursor-not-allowed disabled:opacity-60"
+                            className="mt-1 h-10.5 w-full cursor-pointer rounded-[1.05rem] bg-gradient-to-r from-sky-500 via-blue-600 to-violet-500 text-sm font-medium text-white shadow-[0_18px_40px_rgba(79,113,255,0.28)] transition hover:brightness-[1.04] focus:outline-none focus:ring-4 focus:ring-blue-200 disabled:cursor-not-allowed disabled:opacity-60"
                             disabled={isLoggingIn}
                             type="submit"
                         >

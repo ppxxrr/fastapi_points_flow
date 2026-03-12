@@ -1,29 +1,27 @@
 export default function LoginBackground() {
     return (
         <>
-            <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,#fbfdff_0%,#edf3ff_100%)]" />
+            <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,#fbfdff_0%,#edf3ff_58%,#eef4ff_100%)]" />
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_44%,rgba(96,165,250,0.12),transparent_24%),radial-gradient(circle_at_48%_48%,rgba(129,140,248,0.09),transparent_36%)]" />
 
-            <div className="pointer-events-none absolute -left-24 -top-20 h-[28rem] w-[28rem] rounded-full border-[34px] border-sky-200/45 blur-[2px]" />
-            <div className="pointer-events-none absolute right-[-8rem] top-[-7rem] h-[32rem] w-[32rem] rounded-full border-[56px] border-slate-200/70 blur-[1px]" />
-            <div className="pointer-events-none absolute right-[10%] top-[-3rem] h-[22rem] w-[22rem] rounded-full border-[20px] border-indigo-200/25 blur-sm" />
+            <div className="pointer-events-none absolute left-[7%] top-[2%] h-[24rem] w-[24rem] rounded-full border-[28px] border-sky-200/42 blur-[1px]" />
+            <div className="pointer-events-none absolute right-[6%] top-[-1%] h-[27rem] w-[27rem] rounded-full border-[42px] border-slate-200/65 blur-[1px]" />
+            <div className="pointer-events-none absolute right-[18%] top-[5%] h-[16rem] w-[16rem] rounded-full border-[16px] border-indigo-200/25 blur-sm" />
 
-            <div className="pointer-events-none absolute left-[-14rem] top-[16%] h-[18rem] w-[48rem] rotate-[18deg] rounded-full bg-gradient-to-r from-sky-300/10 via-sky-400/40 to-indigo-400/28 blur-3xl" />
-            <div className="pointer-events-none absolute left-[-8rem] top-[34%] h-[10rem] w-[42rem] -rotate-[12deg] rounded-full bg-gradient-to-r from-sky-200/18 via-blue-400/45 to-violet-400/30 blur-2xl" />
-            <div className="pointer-events-none absolute right-[-14rem] top-[8%] h-[14rem] w-[36rem] -rotate-[18deg] rounded-full bg-gradient-to-r from-indigo-300/8 via-blue-400/35 to-violet-400/28 blur-3xl" />
-            <div className="pointer-events-none absolute right-[-8rem] bottom-[12%] h-[12rem] w-[30rem] rotate-[14deg] rounded-full bg-gradient-to-r from-sky-300/15 via-blue-500/28 to-violet-400/24 blur-3xl" />
+            <div className="pointer-events-none absolute left-[-6rem] top-[24%] h-[14rem] w-[40rem] rotate-[16deg] rounded-full bg-gradient-to-r from-sky-200/12 via-sky-400/42 to-indigo-400/28 blur-3xl" />
+            <div className="pointer-events-none absolute left-[4%] top-[38%] h-[8rem] w-[34rem] -rotate-[10deg] rounded-full bg-gradient-to-r from-sky-200/18 via-blue-400/46 to-violet-400/28 blur-2xl" />
+            <div className="pointer-events-none absolute right-[-4rem] top-[18%] h-[10rem] w-[28rem] -rotate-[15deg] rounded-full bg-gradient-to-r from-indigo-300/10 via-blue-400/36 to-violet-400/28 blur-3xl" />
+            <div className="pointer-events-none absolute right-[2%] bottom-[20%] h-[11rem] w-[24rem] rotate-[13deg] rounded-full bg-gradient-to-r from-sky-300/12 via-blue-500/28 to-violet-400/24 blur-3xl" />
 
-            <div className="pointer-events-none absolute bottom-[-7rem] left-[-4rem] h-[20rem] w-[30rem] rounded-[48%] bg-gradient-to-tr from-white/65 via-sky-100/45 to-white/15 blur-2xl" />
-            <div className="pointer-events-none absolute bottom-[-8rem] right-[-3rem] h-[18rem] w-[22rem] rounded-[46%] bg-gradient-to-tr from-white/35 via-indigo-100/35 to-white/10 blur-3xl" />
+            <div className="pointer-events-none absolute left-[18%] top-[20%] h-28 w-28 rounded-[2rem] border border-white/55 bg-white/26 shadow-[0_22px_56px_rgba(103,168,255,0.18)] backdrop-blur-3xl" />
+            <div className="pointer-events-none absolute right-[17%] top-[22%] h-20 w-20 rounded-[1.6rem] border border-white/55 bg-white/24 shadow-[0_20px_52px_rgba(99,102,241,0.16)] backdrop-blur-2xl" />
+            <div className="pointer-events-none absolute left-[15%] bottom-[19%] h-24 w-24 rounded-full border border-white/55 bg-white/24 shadow-[0_20px_48px_rgba(56,189,248,0.15)] backdrop-blur-2xl" />
+            <div className="pointer-events-none absolute right-[14%] bottom-[17%] h-16 w-16 rounded-full border border-white/55 bg-white/26 shadow-[0_18px_42px_rgba(129,140,248,0.16)] backdrop-blur-xl" />
 
-            <div className="pointer-events-none absolute left-[11%] top-[19%] h-20 w-20 rounded-[1.9rem] border border-white/55 bg-white/28 shadow-[0_20px_50px_rgba(103,168,255,0.18)] backdrop-blur-2xl" />
-            <div className="pointer-events-none absolute right-[12%] top-[20%] h-28 w-28 rounded-[2.2rem] border border-white/50 bg-white/24 shadow-[0_24px_60px_rgba(99,102,241,0.16)] backdrop-blur-2xl" />
-            <div className="pointer-events-none absolute left-[8%] bottom-[18%] h-24 w-24 rounded-full border border-white/55 bg-white/25 shadow-[0_22px_52px_rgba(56,189,248,0.16)] backdrop-blur-2xl" />
-            <div className="pointer-events-none absolute right-[9%] bottom-[14%] h-16 w-16 rounded-full border border-white/55 bg-white/25 shadow-[0_18px_44px_rgba(129,140,248,0.15)] backdrop-blur-xl" />
-
-            <div className="pointer-events-none absolute left-[17%] top-[31%] h-8 w-8 rounded-full bg-sky-300/40 blur-md" />
-            <div className="pointer-events-none absolute right-[22%] top-[26%] h-5 w-5 rounded-full bg-violet-300/50 blur-sm" />
-            <div className="pointer-events-none absolute right-[18%] bottom-[26%] h-10 w-10 rounded-full bg-blue-300/25 blur-xl" />
-            <div className="pointer-events-none absolute left-[24%] bottom-[22%] h-6 w-6 rounded-full bg-indigo-200/50 blur-sm" />
+            <div className="pointer-events-none absolute left-[26%] top-[27%] h-10 w-10 rounded-full bg-sky-300/38 blur-md" />
+            <div className="pointer-events-none absolute right-[27%] top-[29%] h-5 w-5 rounded-full bg-violet-300/46 blur-sm" />
+            <div className="pointer-events-none absolute right-[24%] bottom-[24%] h-12 w-12 rounded-full bg-blue-300/22 blur-xl" />
+            <div className="pointer-events-none absolute left-[28%] bottom-[23%] h-6 w-6 rounded-full bg-indigo-200/52 blur-sm" />
         </>
     );
 }
