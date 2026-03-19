@@ -1,0 +1,10 @@
+[Unit]
+Description=Run Daily Incremental Sync at 02:00
+
+[Timer]
+OnCalendar=*-*-* 02:00:00
+Persistent=true
+Unit=fastapi-daily-incremental-sync.service
+
+[Install]
+WantedBy=timers.target

@@ -13,10 +13,11 @@ import {
 import HealthCard, { type HealthCardData } from "../components/HealthCard";
 import LogsTable, { type TaskLogItem } from "../components/LogsTable";
 import ResultCard, { type ResultCardData } from "../components/ResultCard";
-import Sidebar from "../components/Sidebar";
+import Sidebar, { AdminIcon, ExportIcon } from "../components/Sidebar";
 import TaskForm, { type TaskFormValues } from "../components/TaskForm";
 import TaskStatusCard, { type TaskStatusData } from "../components/TaskStatusCard";
 import Topbar from "../components/Topbar";
+import ManagementPage from "./ManagementPage";
 
 interface DashboardPageProps {
     currentUser: AuthUser;
@@ -24,11 +25,16 @@ interface DashboardPageProps {
 }
 
 type FocusPanel = "toolbar" | "status" | "result" | "logs" | "health";
+type DashboardView = "export" | "management";
 
 const POLL_INTERVAL_MS = 3000;
 
 function recentTaskKey(username: string) {
     return `points_flow_recent_task_id:${username}`;
+}
+
+function dashboardViewKey(username: string) {
+    return `dashboard_active_view:${username}`;
 }
 
 function makeDisplayTime() {
@@ -51,8 +57,8 @@ function formatApiTime(value?: string | null) {
 function toUiTaskStatus(task: PointsFlowTask | null, fallbackUsername: string): TaskStatusData {
     if (!task) {
         return {
-            taskId: "等待创建",
-            type: "积分导出",
+            taskId: "\u7b49\u5f85\u521b\u5efa",
+            type: "\u79ef\u5206\u5bfc\u51fa",
             status: "idle",
             createdAt: "",
             updatedAt: "",
@@ -68,7 +74,7 @@ function toUiTaskStatus(task: PointsFlowTask | null, fallbackUsername: string): 
 
     return {
         taskId: task.task_id,
-        type: "积分导出",
+        type: "\u79ef\u5206\u5bfc\u51fa",
         status: task.status,
         createdAt: formatApiTime(task.created_at),
         updatedAt: formatApiTime(task.updated_at),
@@ -116,6 +122,12 @@ export default function DashboardPage({ currentUser, onLogout }: DashboardPagePr
     const [isPolling, setIsPolling] = useState(false);
     const [submitError, setSubmitError] = useState("");
     const [pollError, setPollError] = useState("");
+    const [activeView, setActiveView] = useState<DashboardView>(() => {
+        if (typeof window === "undefined") {
+            return "export";
+        }
+        return window.location.hash === "#management" ? "management" : "export";
+    });
     const [health, setHealth] = useState<HealthCardData>({
         status: "degraded",
         checkedAt: initialNow,
@@ -138,7 +150,7 @@ export default function DashboardPage({ currentUser, onLogout }: DashboardPagePr
                 {
                     time: initialNow,
                     level: "INFO",
-                    message: "等待创建导出任务",
+                    message: "\u7b49\u5f85\u521b\u5efa\u5bfc\u51fa\u4efb\u52a1",
                 },
             ];
         }
@@ -195,11 +207,21 @@ export default function DashboardPage({ currentUser, onLogout }: DashboardPagePr
             }
         }
 
+        const storedView = window.localStorage.getItem(dashboardViewKey(currentUser.username));
+        if (storedView === "management" || storedView === "export") {
+            setActiveView(storedView);
+        }
+
         void restoreRecentTask();
         return () => {
             active = false;
         };
     }, [currentUser.username, onLogout]);
+
+    useEffect(() => {
+        window.localStorage.setItem(dashboardViewKey(currentUser.username), activeView);
+        window.location.hash = activeView === "management" ? "management" : "export";
+    }, [activeView, currentUser.username]);
 
     useEffect(() => {
         let active = true;
@@ -289,7 +311,7 @@ export default function DashboardPage({ currentUser, onLogout }: DashboardPagePr
 
     async function handleCreateTask(values: TaskFormValues) {
         if (values.startDate > values.endDate) {
-            setSubmitError("开始日期不能晚于结束日期。");
+            setSubmitError("\u5f00\u59cb\u65e5\u671f\u4e0d\u80fd\u665a\u4e8e\u7ed3\u675f\u65e5\u671f\u3002");
             return;
         }
 
@@ -323,6 +345,23 @@ export default function DashboardPage({ currentUser, onLogout }: DashboardPagePr
             : "border border-white/80 shadow-[0_16px_36px_rgba(15,23,42,0.05)]";
     }
 
+    const navigationItems = [
+        {
+            key: "export",
+            label: "\u4f1a\u5458\u79ef\u5206\u6d41\u6c34\u5bfc\u51fa",
+            icon: <ExportIcon />,
+            active: activeView === "export",
+            onClick: () => setActiveView("export"),
+        },
+        {
+            key: "management",
+            label: "\u7ba1\u7406",
+            icon: <AdminIcon />,
+            active: activeView === "management",
+            onClick: () => setActiveView("management"),
+        },
+    ];
+
     return (
         <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.13),_transparent_26%),radial-gradient(circle_at_86%_10%,_rgba(124,58,237,0.11),_transparent_24%),linear-gradient(180deg,_#eef3fb_0%,_#f8fbff_100%)] p-4 lg:p-6">
             <div className="pointer-events-none absolute left-[-120px] top-[-80px] h-[26rem] w-[26rem] rounded-full bg-sky-300/16 blur-3xl" />
@@ -334,93 +373,115 @@ export default function DashboardPage({ currentUser, onLogout }: DashboardPagePr
 
                 <Sidebar
                     collapsed={sidebarCollapsed}
+                    items={navigationItems}
                     onToggleCollapse={() => setSidebarCollapsed((current) => !current)}
                 />
 
                 <main className="relative flex-1 overflow-hidden bg-[linear-gradient(180deg,rgba(255,255,255,0.3),rgba(241,245,255,0.66))] px-5 py-5 lg:px-7 lg:py-6">
-                    <Topbar operatorName={operatorName} onLogout={() => void onLogout()} />
+                    <Topbar
+                        operatorName={operatorName}
+                        onLogout={() => void onLogout()}
+                        title={
+                            activeView === "management"
+                                ? "\u7ba1\u7406"
+                                : "\u4f1a\u5458\u79ef\u5206\u6d41\u6c34\u5bfc\u51fa"
+                        }
+                        subtitle={
+                            activeView === "management"
+                                ? "\u67e5\u770b\u7cfb\u7edf\u8fd0\u884c\u72b6\u6001\u3001\u6570\u636e\u5e93\u7edf\u8ba1\u3001\u540c\u6b65\u4efb\u52a1\u548c\u505c\u8f66\u573a\u6570\u636e\u7591\u70b9\u3002"
+                                : "\u521b\u5efa\u79ef\u5206\u6d41\u6c34\u5bfc\u51fa\u4efb\u52a1\uff0c\u5e76\u8ddf\u8e2a\u6267\u884c\u72b6\u6001\u3002"
+                        }
+                    />
 
-                    <div className="mt-5 flex flex-wrap items-center gap-3">
-                        <FocusChip active={focusPanel === "toolbar"} label="任务栏" onClick={() => setFocusPanel("toolbar")} />
-                        <FocusChip active={focusPanel === "status"} label="执行进度" onClick={() => setFocusPanel("status")} />
-                        <FocusChip active={focusPanel === "result"} label="导出结果" onClick={() => setFocusPanel("result")} />
-                        <FocusChip active={focusPanel === "logs"} label="日志" onClick={() => setFocusPanel("logs")} />
-                        <FocusChip active={focusPanel === "health"} label="系统状态" onClick={() => setFocusPanel("health")} />
-                    </div>
-
-                    {(submitError || pollError) && (
-                        <div className="mt-5 rounded-[1.3rem] border border-rose-200/90 bg-[linear-gradient(135deg,rgba(255,245,247,0.98),rgba(255,241,244,0.92))] px-5 py-4 text-sm leading-6 text-rose-700 shadow-[0_14px_30px_rgba(244,63,94,0.08)]">
-                            {submitError || pollError}
+                    {activeView === "management" ? (
+                        <div className="mt-6">
+                            <ManagementPage onLogout={onLogout} />
                         </div>
+                    ) : (
+                        <>
+                            <div className="mt-5 flex flex-wrap items-center gap-3">
+                                <FocusChip active={focusPanel === "toolbar"} label="\u4efb\u52a1\u9762\u677f" onClick={() => setFocusPanel("toolbar")} />
+                                <FocusChip active={focusPanel === "status"} label="\u6267\u884c\u8fdb\u5ea6" onClick={() => setFocusPanel("status")} />
+                                <FocusChip active={focusPanel === "result"} label="\u5bfc\u51fa\u7ed3\u679c" onClick={() => setFocusPanel("result")} />
+                                <FocusChip active={focusPanel === "logs"} label="\u65e5\u5fd7" onClick={() => setFocusPanel("logs")} />
+                                <FocusChip active={focusPanel === "health"} label="\u7cfb\u7edf\u72b6\u6001" onClick={() => setFocusPanel("health")} />
+                            </div>
+
+                            {(submitError || pollError) && (
+                                <div className="mt-5 rounded-[1.3rem] border border-rose-200/90 bg-[linear-gradient(135deg,rgba(255,245,247,0.98),rgba(255,241,244,0.92))] px-5 py-4 text-sm leading-6 text-rose-700 shadow-[0_14px_30px_rgba(244,63,94,0.08)]">
+                                    {submitError || pollError}
+                                </div>
+                            )}
+
+                            {isPolling && (
+                                <div className="mt-5 flex items-center gap-3 rounded-[1.25rem] border border-blue-100/90 bg-[linear-gradient(135deg,rgba(239,246,255,0.96),rgba(245,243,255,0.88))] px-4 py-3 text-sm text-blue-700 shadow-[0_14px_30px_rgba(88,123,255,0.08)]">
+                                    <div className="h-2.5 w-2.5 animate-pulse rounded-full bg-blue-500" />
+                                    {"\u6b63\u5728\u8f6e\u8be2\u4efb\u52a1"}
+                                </div>
+                            )}
+
+                            <div className="mt-6 grid gap-5 xl:grid-cols-[minmax(0,1.25fr)_21rem]">
+                                <section
+                                    className={[
+                                        "rounded-[1.85rem] bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(247,249,255,0.84))] p-6 backdrop-blur-xl",
+                                        panelClass("toolbar"),
+                                    ].join(" ")}
+                                >
+                                    <TaskForm
+                                        username={currentUser.username}
+                                        displayName={currentUser.display_name}
+                                        defaultValues={{
+                                            startDate: task.params.startDate,
+                                            endDate: task.params.endDate,
+                                        }}
+                                        errorMessage={submitError}
+                                        onSubmit={handleCreateTask}
+                                        submitting={isSubmitting}
+                                    />
+                                </section>
+
+                                <section
+                                    className={[
+                                        "rounded-[1.85rem] bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(247,249,255,0.84))] p-5 backdrop-blur-xl",
+                                        panelClass("health"),
+                                    ].join(" ")}
+                                >
+                                    <HealthCard data={health} />
+                                </section>
+                            </div>
+
+                            <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,0.94fr)_minmax(0,1.06fr)]">
+                                <div className="space-y-5">
+                                    <section
+                                        className={[
+                                            "rounded-[1.85rem] bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(247,249,255,0.84))] p-5 backdrop-blur-xl",
+                                            panelClass("status"),
+                                        ].join(" ")}
+                                    >
+                                        <TaskStatusCard task={task} />
+                                    </section>
+
+                                    <section
+                                        className={[
+                                            "rounded-[1.85rem] bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(247,249,255,0.84))] p-5 backdrop-blur-xl",
+                                            panelClass("result"),
+                                        ].join(" ")}
+                                    >
+                                        <ResultCard data={result} />
+                                    </section>
+                                </div>
+
+                                <section
+                                    className={[
+                                        "rounded-[1.85rem] bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(247,249,255,0.84))] p-5 backdrop-blur-xl",
+                                        panelClass("logs"),
+                                    ].join(" ")}
+                                >
+                                    <LogsTable logs={logs} />
+                                </section>
+                            </div>
+                        </>
                     )}
-
-                    {isPolling && (
-                        <div className="mt-5 flex items-center gap-3 rounded-[1.25rem] border border-blue-100/90 bg-[linear-gradient(135deg,rgba(239,246,255,0.96),rgba(245,243,255,0.88))] px-4 py-3 text-sm text-blue-700 shadow-[0_14px_30px_rgba(88,123,255,0.08)]">
-                            <div className="h-2.5 w-2.5 animate-pulse rounded-full bg-blue-500" />
-                            正在轮询任务
-                        </div>
-                    )}
-
-                    <div className="mt-6 grid gap-5 xl:grid-cols-[minmax(0,1.25fr)_21rem]">
-                        <section
-                            className={[
-                                "rounded-[1.85rem] bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(247,249,255,0.84))] p-6 backdrop-blur-xl",
-                                panelClass("toolbar"),
-                            ].join(" ")}
-                        >
-                            <TaskForm
-                                username={currentUser.username}
-                                displayName={currentUser.display_name}
-                                defaultValues={{
-                                    startDate: task.params.startDate,
-                                    endDate: task.params.endDate,
-                                }}
-                                errorMessage={submitError}
-                                onSubmit={handleCreateTask}
-                                submitting={isSubmitting}
-                            />
-                        </section>
-
-                        <section
-                            className={[
-                                "rounded-[1.85rem] bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(247,249,255,0.84))] p-5 backdrop-blur-xl",
-                                panelClass("health"),
-                            ].join(" ")}
-                        >
-                            <HealthCard data={health} />
-                        </section>
-                    </div>
-
-                    <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,0.94fr)_minmax(0,1.06fr)]">
-                        <div className="space-y-5">
-                            <section
-                                className={[
-                                    "rounded-[1.85rem] bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(247,249,255,0.84))] p-5 backdrop-blur-xl",
-                                    panelClass("status"),
-                                ].join(" ")}
-                            >
-                                <TaskStatusCard task={task} />
-                            </section>
-
-                            <section
-                                className={[
-                                    "rounded-[1.85rem] bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(247,249,255,0.84))] p-5 backdrop-blur-xl",
-                                    panelClass("result"),
-                                ].join(" ")}
-                            >
-                                <ResultCard data={result} />
-                            </section>
-                        </div>
-
-                        <section
-                            className={[
-                                "rounded-[1.85rem] bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(247,249,255,0.84))] p-5 backdrop-blur-xl",
-                                panelClass("logs"),
-                            ].join(" ")}
-                        >
-                            <LogsTable logs={logs} />
-                        </section>
-                    </div>
                 </main>
             </div>
         </div>

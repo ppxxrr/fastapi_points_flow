@@ -6,9 +6,13 @@ __pycache__/
 
 data/exports/*
 !data/exports/.gitkeep
+data/scheduler/
+data/*.db
+data/*.sqlite*
 
 .env
 .env.*
+logs/
 
 ppxxrr
 ppxxrr.pub

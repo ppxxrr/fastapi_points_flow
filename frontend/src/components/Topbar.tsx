@@ -1,9 +1,11 @@
 interface TopbarProps {
     operatorName: string;
     onLogout: () => void;
+    title: string;
+    subtitle?: string;
 }
 
-export default function Topbar({ operatorName, onLogout }: TopbarProps) {
+export default function Topbar({ operatorName, onLogout, title, subtitle }: TopbarProps) {
     return (
         <header className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
             <div>
@@ -11,8 +13,9 @@ export default function Topbar({ operatorName, onLogout }: TopbarProps) {
                     Smart Workbench
                 </p>
                 <h1 className="mt-2 text-[2.25rem] font-semibold tracking-[-0.055em] text-slate-950">
-                    会员积分流水导出
+                    {title}
                 </h1>
+                {subtitle ? <div className="mt-2 text-sm leading-6 text-slate-500">{subtitle}</div> : null}
             </div>
 
             <div className="flex items-center gap-3 self-start">
@@ -33,7 +36,7 @@ export default function Topbar({ operatorName, onLogout }: TopbarProps) {
                         <path d="M20 12H9" strokeLinecap="round" strokeLinejoin="round" />
                         <path d="M9 5v14" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
-                    <span>退出</span>
+                    <span>{"\u9000\u51fa"}</span>
                 </button>
             </div>
         </header>

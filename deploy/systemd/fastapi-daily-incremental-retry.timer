@@ -1,0 +1,10 @@
+[Unit]
+Description=Retry Pending Daily Incremental Sync Every Hour
+
+[Timer]
+OnCalendar=*-*-* *:05:00
+Persistent=true
+Unit=fastapi-daily-incremental-retry.service
+
+[Install]
+WantedBy=timers.target

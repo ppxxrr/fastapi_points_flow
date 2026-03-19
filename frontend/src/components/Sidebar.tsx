@@ -1,11 +1,20 @@
 import type { ReactNode } from "react";
 
+export interface SidebarNavItem {
+    key: string;
+    label: string;
+    icon: ReactNode;
+    active: boolean;
+    onClick: () => void;
+}
+
 interface SidebarProps {
     collapsed: boolean;
     onToggleCollapse: () => void;
+    items: SidebarNavItem[];
 }
 
-function AppIcon() {
+function ExportIcon() {
     return (
         <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
             <path
@@ -14,6 +23,17 @@ function AppIcon() {
                 strokeLinejoin="round"
             />
             <path d="M9.5 12.5l1.7 1.7 3.3-4.4" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+    );
+}
+
+function AdminIcon() {
+    return (
+        <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+            <path d="M4 7.5h16" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M7 4h10v16H7z" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M10 11h4" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M10 15h4" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
     );
 }
@@ -34,20 +54,35 @@ function NavButton({
     collapsed,
     label,
     icon,
+    active,
+    onClick,
 }: {
     collapsed: boolean;
     label: string;
     icon: ReactNode;
+    active: boolean;
+    onClick: () => void;
 }) {
     return (
         <button
             className={[
-                "flex w-full cursor-pointer items-center rounded-[1.35rem] border border-white/75 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(247,249,255,0.9))] text-left text-slate-900 shadow-[0_18px_38px_rgba(76,108,180,0.1)] transition duration-300",
+                "flex w-full cursor-pointer items-center rounded-[1.35rem] border text-left shadow-[0_18px_38px_rgba(76,108,180,0.1)] transition duration-300",
+                active
+                    ? "border-blue-100/90 bg-[linear-gradient(180deg,rgba(239,246,255,0.98),rgba(243,244,255,0.94))] text-slate-950"
+                    : "border-white/75 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(247,249,255,0.9))] text-slate-900",
                 collapsed ? "justify-center px-0 py-3.5" : "gap-3 px-4 py-4",
             ].join(" ")}
+            onClick={onClick}
             type="button"
         >
-            <div className="flex h-10 w-10 items-center justify-center rounded-[1rem] bg-gradient-to-br from-sky-500 via-blue-500 to-violet-500 text-white shadow-[0_14px_28px_rgba(88,123,255,0.22)]">
+            <div
+                className={[
+                    "flex h-10 w-10 items-center justify-center rounded-[1rem] text-white shadow-[0_14px_28px_rgba(88,123,255,0.22)]",
+                    active
+                        ? "bg-gradient-to-br from-slate-900 via-blue-700 to-cyan-500"
+                        : "bg-gradient-to-br from-sky-500 via-blue-500 to-violet-500",
+                ].join(" ")}
+            >
                 {icon}
             </div>
             {!collapsed && (
@@ -59,7 +94,9 @@ function NavButton({
     );
 }
 
-export default function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
+export { AdminIcon, ExportIcon };
+
+export default function Sidebar({ collapsed, onToggleCollapse, items }: SidebarProps) {
     return (
         <aside
             className={[
@@ -76,7 +113,7 @@ export default function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
                             Smart Workbench
                         </p>
                         <div className="mt-2 text-[1.35rem] font-semibold tracking-[-0.04em] text-slate-950">
-                            控制台
+                            {"\u63a7\u5236\u53f0"}
                         </div>
                     </div>
                 )}
@@ -93,8 +130,17 @@ export default function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
                 </button>
             </div>
 
-            <div className={["px-4", collapsed ? "pt-4" : "pt-2"].join(" ")}>
-                <NavButton collapsed={collapsed} icon={<AppIcon />} label="会员积分流水导出" />
+            <div className={["space-y-3 px-4", collapsed ? "pt-4" : "pt-2"].join(" ")}>
+                {items.map((item) => (
+                    <NavButton
+                        key={item.key}
+                        active={item.active}
+                        collapsed={collapsed}
+                        icon={item.icon}
+                        label={item.label}
+                        onClick={item.onClick}
+                    />
+                ))}
             </div>
 
             <div className="mt-auto px-4 pb-5">
@@ -111,7 +157,9 @@ export default function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
                             <div className="text-[0.7rem] font-medium uppercase tracking-[0.2em] text-slate-400">
                                 Program
                             </div>
-                            <div className="mt-2 text-sm font-medium text-slate-900">会员积分流水导出</div>
+                            <div className="mt-2 text-sm font-medium text-slate-900">
+                                {"\u4f1a\u5458\u7cfb\u7edf\u7ba1\u7406"}
+                            </div>
                         </>
                     )}
                 </div>

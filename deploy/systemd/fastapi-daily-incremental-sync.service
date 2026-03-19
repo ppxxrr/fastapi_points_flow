@@ -1,0 +1,22 @@
+[Unit]
+Description=FastAPI Daily Incremental Sync
+After=network.target mariadb.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=fastapi
+Group=fastapi
+# 替换为服务器上的项目根目录，例如 /srv/fastapi
+WorkingDirectory=/srv/fastapi
+# 替换为服务器上的 .env 文件路径
+EnvironmentFile=/srv/fastapi/.env
+Environment=PYTHONUNBUFFERED=1
+ExecStartPre=/usr/bin/test -f /srv/fastapi/.env
+ExecStartPre=/bin/mkdir -p /srv/fastapi/logs /srv/fastapi/data/scheduler
+# 如果虚拟环境路径不同，请同步替换
+ExecStart=/srv/fastapi/.venv/bin/python scripts/run_daily_incremental_sync.py
+StandardOutput=journal
+StandardError=journal
+NoNewPrivileges=true
+
