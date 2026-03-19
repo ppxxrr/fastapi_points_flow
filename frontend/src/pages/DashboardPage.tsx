@@ -11,22 +11,26 @@ import {
     type PointsFlowTask,
 } from "../api/pointsFlow";
 import HealthCard, { type HealthCardData } from "../components/HealthCard";
+import LoginDialog from "../components/LoginDialog";
 import LogsTable, { type TaskLogItem } from "../components/LogsTable";
 import ResultCard, { type ResultCardData } from "../components/ResultCard";
-import Sidebar, { AdminIcon, ExportIcon } from "../components/Sidebar";
+import Sidebar, { AdminIcon, ExportIcon, ToolsIcon } from "../components/Sidebar";
 import TaskForm, { type TaskFormValues } from "../components/TaskForm";
 import TaskStatusCard, { type TaskStatusData } from "../components/TaskStatusCard";
 import Topbar from "../components/Topbar";
 import ManagementPage from "./ManagementPage";
+import ToolsPage from "./ToolsPage";
 
 interface DashboardPageProps {
-    currentUser: AuthUser;
+    currentUser: AuthUser | null;
     onLogout: () => Promise<void> | void;
 }
 
 type FocusPanel = "toolbar" | "status" | "result" | "logs" | "health";
-type DashboardView = "export" | "management";
+type DashboardView = "tools" | "export" | "management";
 
+const DEFAULT_GUEST_VIEW: DashboardView = "tools";
+const DEFAULT_AUTH_VIEW: DashboardView = "export";
 const POLL_INTERVAL_MS = 3000;
 
 function recentTaskKey(username: string) {
@@ -39,6 +43,14 @@ function dashboardViewKey(username: string) {
 
 function makeDisplayTime() {
     return new Date().toLocaleString("zh-CN");
+}
+
+function parseDashboardView(hash: string): DashboardView | null {
+    const normalized = hash.replace(/^#/, "");
+    if (normalized === "tools" || normalized === "export" || normalized === "management") {
+        return normalized;
+    }
+    return null;
 }
 
 function formatApiTime(value?: string | null) {
@@ -57,8 +69,8 @@ function formatApiTime(value?: string | null) {
 function toUiTaskStatus(task: PointsFlowTask | null, fallbackUsername: string): TaskStatusData {
     if (!task) {
         return {
-            taskId: "\u7b49\u5f85\u521b\u5efa",
-            type: "\u79ef\u5206\u5bfc\u51fa",
+            taskId: "等待创建",
+            type: "积分导出",
             status: "idle",
             createdAt: "",
             updatedAt: "",
@@ -74,7 +86,7 @@ function toUiTaskStatus(task: PointsFlowTask | null, fallbackUsername: string): 
 
     return {
         taskId: task.task_id,
-        type: "\u79ef\u5206\u5bfc\u51fa",
+        type: "积分导出",
         status: task.status,
         createdAt: formatApiTime(task.created_at),
         updatedAt: formatApiTime(task.updated_at),
@@ -122,11 +134,12 @@ export default function DashboardPage({ currentUser, onLogout }: DashboardPagePr
     const [isPolling, setIsPolling] = useState(false);
     const [submitError, setSubmitError] = useState("");
     const [pollError, setPollError] = useState("");
+    const [isLoginDialogOpen, setIsLoginDialogOpen] = useState(false);
     const [activeView, setActiveView] = useState<DashboardView>(() => {
         if (typeof window === "undefined") {
-            return "export";
+            return DEFAULT_GUEST_VIEW;
         }
-        return window.location.hash === "#management" ? "management" : "export";
+        return parseDashboardView(window.location.hash) || DEFAULT_GUEST_VIEW;
     });
     const [health, setHealth] = useState<HealthCardData>({
         status: "degraded",
@@ -137,12 +150,11 @@ export default function DashboardPage({ currentUser, onLogout }: DashboardPagePr
         error: "",
     });
 
-    const operatorName = currentUser.display_name || currentUser.username;
+    const isAuthenticated = Boolean(currentUser);
+    const currentUsername = currentUser?.username || "guest";
+    const operatorName = currentUser?.display_name || currentUser?.username || "游客";
 
-    const task = useMemo(
-        () => toUiTaskStatus(taskRecord, currentUser.username),
-        [currentUser.username, taskRecord],
-    );
+    const task = useMemo(() => toUiTaskStatus(taskRecord, currentUsername), [currentUsername, taskRecord]);
 
     const logs = useMemo<TaskLogItem[]>(() => {
         if (!taskRecord) {
@@ -150,7 +162,7 @@ export default function DashboardPage({ currentUser, onLogout }: DashboardPagePr
                 {
                     time: initialNow,
                     level: "INFO",
-                    message: "\u7b49\u5f85\u521b\u5efa\u5bfc\u51fa\u4efb\u52a1",
+                    message: "等待创建导出任务",
                 },
             ];
         }
@@ -179,10 +191,55 @@ export default function DashboardPage({ currentUser, onLogout }: DashboardPagePr
     );
 
     useEffect(() => {
+        if (currentUser) {
+            setIsLoginDialogOpen(false);
+        }
+    }, [currentUser]);
+
+    useEffect(() => {
+        if (typeof window === "undefined") {
+            return;
+        }
+
+        function handleHashChange() {
+            const parsed = parseDashboardView(window.location.hash);
+            if (!parsed) {
+                return;
+            }
+            if (!currentUser && parsed !== DEFAULT_GUEST_VIEW) {
+                setActiveView(DEFAULT_GUEST_VIEW);
+                if (window.location.hash !== `#${DEFAULT_GUEST_VIEW}`) {
+                    window.location.hash = DEFAULT_GUEST_VIEW;
+                }
+                return;
+            }
+            setActiveView(parsed);
+        }
+
+        window.addEventListener("hashchange", handleHashChange);
+        return () => window.removeEventListener("hashchange", handleHashChange);
+    }, [currentUser]);
+
+    useEffect(() => {
         let active = true;
 
+        if (!currentUser) {
+            setTaskRecord(null);
+            setSubmitError("");
+            setPollError("");
+            setIsPolling(false);
+            setActiveView(DEFAULT_GUEST_VIEW);
+            if (typeof window !== "undefined" && window.location.hash !== `#${DEFAULT_GUEST_VIEW}`) {
+                window.location.hash = DEFAULT_GUEST_VIEW;
+            }
+            return () => {
+                active = false;
+            };
+        }
+        const authenticatedUsername = currentUser.username;
+
         async function restoreRecentTask() {
-            const taskId = window.localStorage.getItem(recentTaskKey(currentUser.username));
+            const taskId = window.localStorage.getItem(recentTaskKey(authenticatedUsername));
             if (!taskId) {
                 return;
             }
@@ -202,26 +259,50 @@ export default function DashboardPage({ currentUser, onLogout }: DashboardPagePr
                     await onLogout();
                     return;
                 }
-                window.localStorage.removeItem(recentTaskKey(currentUser.username));
+                window.localStorage.removeItem(recentTaskKey(authenticatedUsername));
                 setPollError(getApiErrorMessage(error));
             }
         }
 
-        const storedView = window.localStorage.getItem(dashboardViewKey(currentUser.username));
-        if (storedView === "management" || storedView === "export") {
-            setActiveView(storedView);
+        const hashView = parseDashboardView(window.location.hash);
+        if (hashView) {
+            setActiveView(hashView);
+        } else {
+            const storedView = window.localStorage.getItem(dashboardViewKey(authenticatedUsername));
+            if (storedView === "tools" || storedView === "management" || storedView === "export") {
+                setActiveView(storedView);
+            } else {
+                setActiveView(DEFAULT_AUTH_VIEW);
+            }
         }
 
         void restoreRecentTask();
         return () => {
             active = false;
         };
-    }, [currentUser.username, onLogout]);
+    }, [currentUser, onLogout]);
 
     useEffect(() => {
+        if (typeof window === "undefined") {
+            return;
+        }
+
+        if (!currentUser) {
+            if (activeView !== DEFAULT_GUEST_VIEW) {
+                setActiveView(DEFAULT_GUEST_VIEW);
+                return;
+            }
+            if (window.location.hash !== `#${DEFAULT_GUEST_VIEW}`) {
+                window.location.hash = DEFAULT_GUEST_VIEW;
+            }
+            return;
+        }
+
         window.localStorage.setItem(dashboardViewKey(currentUser.username), activeView);
-        window.location.hash = activeView === "management" ? "management" : "export";
-    }, [activeView, currentUser.username]);
+        if (window.location.hash !== `#${activeView}`) {
+            window.location.hash = activeView;
+        }
+    }, [activeView, currentUser]);
 
     useEffect(() => {
         let active = true;
@@ -267,7 +348,7 @@ export default function DashboardPage({ currentUser, onLogout }: DashboardPagePr
     }, []);
 
     useEffect(() => {
-        if (!shouldPollTask(taskRecord)) {
+        if (!currentUser || !shouldPollTask(taskRecord)) {
             setIsPolling(false);
             return;
         }
@@ -276,7 +357,7 @@ export default function DashboardPage({ currentUser, onLogout }: DashboardPagePr
         setIsPolling(true);
 
         const timer = window.setInterval(async () => {
-            if (!taskRecord) {
+            if (!taskRecord || !currentUser) {
                 return;
             }
 
@@ -307,11 +388,16 @@ export default function DashboardPage({ currentUser, onLogout }: DashboardPagePr
             setIsPolling(false);
             window.clearInterval(timer);
         };
-    }, [currentUser.username, onLogout, taskRecord]);
+    }, [currentUser, onLogout, taskRecord]);
 
     async function handleCreateTask(values: TaskFormValues) {
+        if (!currentUser) {
+            setIsLoginDialogOpen(true);
+            return;
+        }
+
         if (values.startDate > values.endDate) {
-            setSubmitError("\u5f00\u59cb\u65e5\u671f\u4e0d\u80fd\u665a\u4e8e\u7ed3\u675f\u65e5\u671f\u3002");
+            setSubmitError("开始日期不能晚于结束日期。");
             return;
         }
 
@@ -345,22 +431,48 @@ export default function DashboardPage({ currentUser, onLogout }: DashboardPagePr
             : "border border-white/80 shadow-[0_16px_36px_rgba(15,23,42,0.05)]";
     }
 
-    const navigationItems = [
-        {
-            key: "export",
-            label: "\u4f1a\u5458\u79ef\u5206\u6d41\u6c34\u5bfc\u51fa",
-            icon: <ExportIcon />,
-            active: activeView === "export",
-            onClick: () => setActiveView("export"),
-        },
-        {
-            key: "management",
-            label: "\u7ba1\u7406",
-            icon: <AdminIcon />,
-            active: activeView === "management",
-            onClick: () => setActiveView("management"),
-        },
-    ];
+    const navigationItems = isAuthenticated
+        ? [
+              {
+                  key: "tools",
+                  label: "小工具",
+                  icon: <ToolsIcon />,
+                  active: activeView === "tools",
+                  onClick: () => setActiveView("tools"),
+              },
+              {
+                  key: "export",
+                  label: "会员积分流水导出",
+                  icon: <ExportIcon />,
+                  active: activeView === "export",
+                  onClick: () => setActiveView("export"),
+              },
+              {
+                  key: "management",
+                  label: "管理",
+                  icon: <AdminIcon />,
+                  active: activeView === "management",
+                  onClick: () => setActiveView("management"),
+              },
+          ]
+        : [
+              {
+                  key: "tools",
+                  label: "小工具",
+                  icon: <ToolsIcon />,
+                  active: true,
+                  onClick: () => setActiveView("tools"),
+              },
+          ];
+
+    const pageTitle =
+        activeView === "management" ? "管理" : activeView === "export" ? "会员积分流水导出" : "小工具";
+    const pageSubtitle =
+        activeView === "management"
+            ? "查看系统运行状态、数据库统计、同步任务和停车场数据疑点。"
+            : activeView === "export"
+              ? "创建积分流水导出任务，并跟踪执行状态。"
+              : "游客模式下默认开放的小工具入口。";
 
     return (
         <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.13),_transparent_26%),radial-gradient(circle_at_86%_10%,_rgba(124,58,237,0.11),_transparent_24%),linear-gradient(180deg,_#eef3fb_0%,_#f8fbff_100%)] p-4 lg:p-6">
@@ -379,32 +491,26 @@ export default function DashboardPage({ currentUser, onLogout }: DashboardPagePr
 
                 <main className="relative flex-1 overflow-hidden bg-[linear-gradient(180deg,rgba(255,255,255,0.3),rgba(241,245,255,0.66))] px-5 py-5 lg:px-7 lg:py-6">
                     <Topbar
+                        isAuthenticated={isAuthenticated}
                         operatorName={operatorName}
+                        onLogin={() => setIsLoginDialogOpen(true)}
                         onLogout={() => void onLogout()}
-                        title={
-                            activeView === "management"
-                                ? "\u7ba1\u7406"
-                                : "\u4f1a\u5458\u79ef\u5206\u6d41\u6c34\u5bfc\u51fa"
-                        }
-                        subtitle={
-                            activeView === "management"
-                                ? "\u67e5\u770b\u7cfb\u7edf\u8fd0\u884c\u72b6\u6001\u3001\u6570\u636e\u5e93\u7edf\u8ba1\u3001\u540c\u6b65\u4efb\u52a1\u548c\u505c\u8f66\u573a\u6570\u636e\u7591\u70b9\u3002"
-                                : "\u521b\u5efa\u79ef\u5206\u6d41\u6c34\u5bfc\u51fa\u4efb\u52a1\uff0c\u5e76\u8ddf\u8e2a\u6267\u884c\u72b6\u6001\u3002"
-                        }
+                        subtitle={pageSubtitle}
+                        title={pageTitle}
                     />
 
                     {activeView === "management" ? (
                         <div className="mt-6">
                             <ManagementPage onLogout={onLogout} />
                         </div>
-                    ) : (
+                    ) : activeView === "export" ? (
                         <>
                             <div className="mt-5 flex flex-wrap items-center gap-3">
-                                <FocusChip active={focusPanel === "toolbar"} label="\u4efb\u52a1\u9762\u677f" onClick={() => setFocusPanel("toolbar")} />
-                                <FocusChip active={focusPanel === "status"} label="\u6267\u884c\u8fdb\u5ea6" onClick={() => setFocusPanel("status")} />
-                                <FocusChip active={focusPanel === "result"} label="\u5bfc\u51fa\u7ed3\u679c" onClick={() => setFocusPanel("result")} />
-                                <FocusChip active={focusPanel === "logs"} label="\u65e5\u5fd7" onClick={() => setFocusPanel("logs")} />
-                                <FocusChip active={focusPanel === "health"} label="\u7cfb\u7edf\u72b6\u6001" onClick={() => setFocusPanel("health")} />
+                                <FocusChip active={focusPanel === "toolbar"} label="任务面板" onClick={() => setFocusPanel("toolbar")} />
+                                <FocusChip active={focusPanel === "status"} label="执行进度" onClick={() => setFocusPanel("status")} />
+                                <FocusChip active={focusPanel === "result"} label="导出结果" onClick={() => setFocusPanel("result")} />
+                                <FocusChip active={focusPanel === "logs"} label="日志" onClick={() => setFocusPanel("logs")} />
+                                <FocusChip active={focusPanel === "health"} label="系统状态" onClick={() => setFocusPanel("health")} />
                             </div>
 
                             {(submitError || pollError) && (
@@ -416,7 +522,7 @@ export default function DashboardPage({ currentUser, onLogout }: DashboardPagePr
                             {isPolling && (
                                 <div className="mt-5 flex items-center gap-3 rounded-[1.25rem] border border-blue-100/90 bg-[linear-gradient(135deg,rgba(239,246,255,0.96),rgba(245,243,255,0.88))] px-4 py-3 text-sm text-blue-700 shadow-[0_14px_30px_rgba(88,123,255,0.08)]">
                                     <div className="h-2.5 w-2.5 animate-pulse rounded-full bg-blue-500" />
-                                    {"\u6b63\u5728\u8f6e\u8be2\u4efb\u52a1"}
+                                    正在轮询任务
                                 </div>
                             )}
 
@@ -428,15 +534,15 @@ export default function DashboardPage({ currentUser, onLogout }: DashboardPagePr
                                     ].join(" ")}
                                 >
                                     <TaskForm
-                                        username={currentUser.username}
-                                        displayName={currentUser.display_name}
                                         defaultValues={{
                                             startDate: task.params.startDate,
                                             endDate: task.params.endDate,
                                         }}
+                                        displayName={currentUser?.display_name || ""}
                                         errorMessage={submitError}
                                         onSubmit={handleCreateTask}
                                         submitting={isSubmitting}
+                                        username={currentUser?.username || ""}
                                     />
                                 </section>
 
@@ -481,9 +587,15 @@ export default function DashboardPage({ currentUser, onLogout }: DashboardPagePr
                                 </section>
                             </div>
                         </>
+                    ) : (
+                        <div className="mt-6">
+                            <ToolsPage />
+                        </div>
                     )}
                 </main>
             </div>
+
+            <LoginDialog onClose={() => setIsLoginDialogOpen(false)} open={isLoginDialogOpen} />
         </div>
     );
 }

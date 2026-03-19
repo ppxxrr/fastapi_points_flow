@@ -67,6 +67,12 @@ def iter_dates(start_date: date, end_date: date) -> list[date]:
     return values
 
 
+def chunk_dates(values: list[date], size: int) -> list[list[date]]:
+    if size <= 0:
+        return [values]
+    return [values[index : index + size] for index in range(0, len(values), size)]
+
+
 def yesterday() -> date:
     return datetime.now().date() - timedelta(days=1)
 
@@ -75,6 +81,18 @@ def parse_date_arg(value: str | None, default: date) -> date:
     if not value:
         return default
     return date.fromisoformat(value)
+
+
+def normalize_business_date(value: Any) -> date | None:
+    if value is None:
+        return None
+    if isinstance(value, date) and not isinstance(value, datetime):
+        return value
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, str):
+        return date.fromisoformat(value)
+    return None
 
 
 def extract_date_range_from_name(name: str) -> tuple[date, date] | None:
@@ -459,7 +477,7 @@ class CoverageService:
             )
         ).all()
         return {
-            *{date.fromisoformat(value) for (value,) in data_rows if value},
+            *{normalized for (value,) in data_rows if (normalized := normalize_business_date(value)) is not None},
             *set(job_rows),
         }
 
@@ -479,7 +497,7 @@ class CoverageService:
             )
         ).all()
         return {
-            *{date.fromisoformat(value) for (value,) in data_rows if value},
+            *{normalized for (value,) in data_rows if (normalized := normalize_business_date(value)) is not None},
             *set(job_rows),
         }
 
@@ -654,6 +672,7 @@ class BackfillService:
         dry_run: bool = False,
         check_only: bool = False,
         force: bool = False,
+        fetch_chunk_days: int = 31,
     ) -> BackfillSummary:
         summary = BackfillSummary(
             dataset_name=self.dataset_name,
@@ -680,32 +699,33 @@ class BackfillService:
         if not target_dates:
             return summary
 
-        available_dates = provider.available_dates(set(target_dates))
-        rows_by_date = provider.fetch_rows_by_date(available_dates) if available_dates else {}
+        for target_chunk in chunk_dates(target_dates, fetch_chunk_days):
+            available_dates = provider.available_dates(set(target_chunk))
+            rows_by_date = provider.fetch_rows_by_date(available_dates) if available_dates else {}
 
-        for target_date in target_dates:
-            try:
-                date_summary = self.window_sync_service.sync_date(
-                    target_date=target_date,
-                    provider=provider,
-                    rows=rows_by_date.get(target_date, []),
-                    source_available=target_date in available_dates,
-                    dry_run=dry_run,
-                    force=force,
-                )
-            except Exception as exc:
-                date_summary = DateSyncSummary(
-                    dataset_name=self.dataset_name,
-                    job_name=self.window_sync_service.job_name,
-                    target_date=target_date.isoformat(),
-                    source_provider=provider.provider_name,
-                    dry_run=dry_run,
-                    status="failed",
-                    source_available=target_date in available_dates,
-                    error_message=str(exc),
-                )
-                self.logger("ERROR", f"[{self.dataset_name}] failed on {target_date.isoformat()}: {exc}")
-            summary.synced_dates.append(date_summary)
+            for target_date in target_chunk:
+                try:
+                    date_summary = self.window_sync_service.sync_date(
+                        target_date=target_date,
+                        provider=provider,
+                        rows=rows_by_date.get(target_date, []),
+                        source_available=target_date in available_dates,
+                        dry_run=dry_run,
+                        force=force,
+                    )
+                except Exception as exc:
+                    date_summary = DateSyncSummary(
+                        dataset_name=self.dataset_name,
+                        job_name=self.window_sync_service.job_name,
+                        target_date=target_date.isoformat(),
+                        source_provider=provider.provider_name,
+                        dry_run=dry_run,
+                        status="failed",
+                        source_available=target_date in available_dates,
+                        error_message=str(exc),
+                    )
+                    self.logger("ERROR", f"[{self.dataset_name}] failed on {target_date.isoformat()}: {exc}")
+                summary.synced_dates.append(date_summary)
         return summary
 
 

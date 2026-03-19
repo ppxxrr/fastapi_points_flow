@@ -38,6 +38,17 @@ function AdminIcon() {
     );
 }
 
+function ToolsIcon() {
+    return (
+        <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+            <path d="M14 6l4 4" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M5 19l6.5-6.5" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M11.5 12.5l2-2a3 3 0 114.24 4.24l-2 2" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M8.5 15.5l-1 1a2 2 0 01-2.83-2.83l1-1" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+    );
+}
+
 function CollapseIcon({ collapsed }: { collapsed: boolean }) {
     return (
         <svg className="h-4.5 w-4.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -94,7 +105,7 @@ function NavButton({
     );
 }
 
-export { AdminIcon, ExportIcon };
+export { AdminIcon, ExportIcon, ToolsIcon };
 
 export default function Sidebar({ collapsed, onToggleCollapse, items }: SidebarProps) {
     return (

@@ -25,3 +25,7 @@ cd /opt/fastapi_points_flow
 
 sudo nginx -t
 sudo systemctl reload nginx
+
+build命令：
+cd /opt/fastapi_points_flow/frontend
+npm run build
