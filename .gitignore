@@ -19,3 +19,6 @@ ppxxrr.pub
 
 *.rar
 ls
+csv/*.csv
+data/*.tar.gz
+data/member_sync_result*.csv
