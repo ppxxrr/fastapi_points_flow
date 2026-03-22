@@ -4,10 +4,10 @@ import logging
 import mimetypes
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import FileResponse
 
-from app.auth import AUTH_COOKIE_NAME, auth_session_store, get_current_auth_session
+from app.auth import get_current_auth_session
 from app.schemas import ExportTaskCreateRequest, ExportTaskResponse
 from app.services.points_flow_service import PointsFlowExportService
 from app.task_manager import TaskManager
@@ -50,7 +50,6 @@ def serialize_task(task: dict) -> ExportTaskResponse:
 @router.post("/tasks", response_model=ExportTaskResponse, status_code=status.HTTP_202_ACCEPTED)
 def create_points_flow_task(
     payload: ExportTaskCreateRequest,
-    request: Request,
     current_session=Depends(get_current_auth_session),
 ) -> ExportTaskResponse:
     if payload.start_date > payload.end_date:
@@ -59,37 +58,13 @@ def create_points_flow_task(
             detail="start_date cannot be later than end_date",
         )
 
-    try:
-        refreshed_auth = task_manager.service.refresh_authenticated_session(
-            auth_state=current_session.icsp_auth_state,
-            log_callback=task_log_callback,
-        )
-    except RuntimeError as exc:
-        route_logger.warning(
-            "Points-flow task creation rejected for user=%s: %s",
-            current_session.username,
-            exc,
-        )
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
-
-    session_id = request.cookies.get(AUTH_COOKIE_NAME)
-    if session_id:
-        auth_session_store.update_session_auth_state(
-            session_id,
-            refreshed_auth.auth_state,
-            username=refreshed_auth.username,
-            display_name=refreshed_auth.display_name,
-            user_id=refreshed_auth.user_id,
-            user_code=refreshed_auth.user_code,
-        )
-
     task = task_manager.create_task(
-        owner_username=refreshed_auth.username,
-        auth_state=refreshed_auth.auth_state,
+        owner_username=current_session.username,
+        auth_state=current_session.icsp_auth_state,
         start_date=payload.start_date.isoformat(),
         end_date=payload.end_date.isoformat(),
     )
-    route_logger.info("Points-flow task created task_id=%s user=%s", task["task_id"], refreshed_auth.username)
+    route_logger.info("Points-flow task created task_id=%s user=%s source=database", task["task_id"], current_session.username)
     return serialize_task(task)
 
 

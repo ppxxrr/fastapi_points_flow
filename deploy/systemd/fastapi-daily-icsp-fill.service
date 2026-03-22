@@ -1,0 +1,18 @@
+[Unit]
+Description=FastAPI Daily ICSP Direct Fill
+After=network.target mariadb.service fastapi-4pyun-browser.service
+Wants=network-online.target fastapi-4pyun-browser.service
+
+[Service]
+Type=oneshot
+User=fastapi
+Group=fastapi
+WorkingDirectory=/opt/fastapi_points_flow
+EnvironmentFile=/opt/fastapi_points_flow/.env
+Environment=PYTHONUNBUFFERED=1
+ExecStartPre=/usr/bin/test -f /opt/fastapi_points_flow/.env
+ExecStartPre=/bin/mkdir -p /opt/fastapi_points_flow/logs /opt/fastapi_points_flow/data/scheduler /opt/fastapi_points_flow/data/legacy
+ExecStart=/opt/fastapi_points_flow/.venv/bin/python scripts/run_daily_icsp_data_fill.py
+StandardOutput=journal
+StandardError=journal
+NoNewPrivileges=true

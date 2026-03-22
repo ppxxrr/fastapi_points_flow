@@ -16,8 +16,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
-import tkinter as tk
-from tkinter import messagebox, ttk
+try:
+    import tkinter as tk
+    from tkinter import messagebox, ttk
+except Exception:  # noqa: BLE001
+    tk = None
+    messagebox = None
+    ttk = None
 
 
 def load_pymupdf():
@@ -461,6 +466,8 @@ def collect_input_pdfs(runtime_dir: Path) -> List[Path]:
 
 class ReplacePdfApp:
     def __init__(self) -> None:
+        if tk is None or messagebox is None or ttk is None:
+            raise RuntimeError("tkinter unavailable in current runtime")
         self.runtime_dir = get_runtime_dir()
         self.root = tk.Tk()
         self.root.title("PDF 批量替换工具")

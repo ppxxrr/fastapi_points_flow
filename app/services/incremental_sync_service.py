@@ -22,6 +22,7 @@ from app.services.member_point_flow_service import (
     ParkingRecordCsvImportService,
 )
 from app.services.member_sync_service import ICSPMemberSyncService
+from app.services.parking_api_sync_service import ParkingApiClient
 from app.services.sync_job_state_service import SyncJobStateService
 from app.services.sync_log_service import SyncTaskLogService
 
@@ -42,7 +43,7 @@ DEFAULT_PARKING_SOURCE_DIR = Path(
 DEFAULT_POINT_FLOW_START_DATE = date.fromisoformat(os.getenv("POINT_FLOW_SYNC_START_DATE", "2024-01-01"))
 DEFAULT_PARKING_START_DATE = date.fromisoformat(os.getenv("PARKING_SYNC_START_DATE", "2025-01-01"))
 DEFAULT_POINT_FLOW_PROVIDER = os.getenv("POINT_FLOW_INCREMENTAL_PROVIDER", "auto").strip().lower() or "auto"
-DEFAULT_PARKING_PROVIDER = os.getenv("PARKING_INCREMENTAL_PROVIDER", "csv").strip().lower() or "csv"
+DEFAULT_PARKING_PROVIDER = os.getenv("PARKING_INCREMENTAL_PROVIDER", "auto").strip().lower() or "auto"
 
 POINT_FLOW_JOB_NAME = "point_flow_window_sync"
 PARKING_JOB_NAME = "parking_record_window_sync"
@@ -67,6 +68,12 @@ def iter_dates(start_date: date, end_date: date) -> list[date]:
     return values
 
 
+def chunk_dates(values: list[date], size: int) -> list[list[date]]:
+    if size <= 0:
+        return [values]
+    return [values[index : index + size] for index in range(0, len(values), size)]
+
+
 def yesterday() -> date:
     return datetime.now().date() - timedelta(days=1)
 
@@ -75,6 +82,18 @@ def parse_date_arg(value: str | None, default: date) -> date:
     if not value:
         return default
     return date.fromisoformat(value)
+
+
+def normalize_business_date(value: Any) -> date | None:
+    if value is None:
+        return None
+    if isinstance(value, date) and not isinstance(value, datetime):
+        return value
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, str):
+        return date.fromisoformat(value)
+    return None
 
 
 def extract_date_range_from_name(name: str) -> tuple[date, date] | None:
@@ -352,6 +371,30 @@ class ParkingCsvSourceProvider(BaseCsvWindowSourceProvider):
     business_date_getter = staticmethod(coalesce_parking_business_date)
 
 
+class ParkingApiSourceProvider(BaseWindowSourceProvider):
+    provider_name = "api"
+    dataset_name = "parking_record"
+
+    def __init__(self, logger: LoggerCallback = None):
+        self.logger = logger or _noop_logger
+        self.client = ParkingApiClient(logger=self.logger)
+
+    def available_dates(self, target_dates: set[date]) -> set[date]:
+        return self.client.available_dates(target_dates)
+
+    def fetch_rows_by_date(
+        self,
+        target_dates: set[date],
+    ) -> dict[date, list[tuple[dict[str, Any], str | Path | None, int | None]]]:
+        return self.client.fetch_rows_for_dates(target_dates)
+
+    def get_stats(self) -> dict[str, Any]:
+        return self.client.get_stats()
+
+    def close(self) -> None:
+        self.client.close()
+
+
 class ICSPPointFlowSourceProvider(BaseWindowSourceProvider):
     provider_name = "api"
     dataset_name = "member_point_flow"
@@ -411,14 +454,19 @@ def resolve_point_flow_provider(
     raise ValueError(f"Unsupported point-flow provider: {provider_name}")
 
 
-def resolve_parking_provider(provider_name: str) -> BaseWindowSourceProvider:
+def resolve_parking_provider(
+    provider_name: str,
+    *,
+    logger: LoggerCallback = None,
+) -> BaseWindowSourceProvider:
     normalized = (provider_name or DEFAULT_PARKING_PROVIDER).strip().lower()
-    if normalized != "csv":
-        raise ValueError(
-            "Unsupported parking provider. Current implementation supports csv only; "
-            "browser keepalive provider can be plugged in later."
-        )
-    return ParkingCsvSourceProvider(DEFAULT_PARKING_SOURCE_DIR)
+    if normalized == "auto":
+        normalized = "api"
+    if normalized == "api":
+        return ParkingApiSourceProvider(logger=logger)
+    if normalized == "csv":
+        return ParkingCsvSourceProvider(DEFAULT_PARKING_SOURCE_DIR)
+    raise ValueError(f"Unsupported parking provider: {provider_name}")
 
 
 class CoverageService:
@@ -459,7 +507,7 @@ class CoverageService:
             )
         ).all()
         return {
-            *{date.fromisoformat(value) for (value,) in data_rows if value},
+            *{normalized for (value,) in data_rows if (normalized := normalize_business_date(value)) is not None},
             *set(job_rows),
         }
 
@@ -479,7 +527,7 @@ class CoverageService:
             )
         ).all()
         return {
-            *{date.fromisoformat(value) for (value,) in data_rows if value},
+            *{normalized for (value,) in data_rows if (normalized := normalize_business_date(value)) is not None},
             *set(job_rows),
         }
 
@@ -654,6 +702,7 @@ class BackfillService:
         dry_run: bool = False,
         check_only: bool = False,
         force: bool = False,
+        fetch_chunk_days: int = 31,
     ) -> BackfillSummary:
         summary = BackfillSummary(
             dataset_name=self.dataset_name,
@@ -664,49 +713,53 @@ class BackfillService:
             check_only=check_only,
             force=force,
         )
-
-        if force:
-            target_dates = iter_dates(start_date, end_date)
-        else:
-            missing = self.coverage_loader(start_date, end_date)
-            summary.missing_dates = missing.missing_dates
-            target_dates = [date.fromisoformat(value) for value in missing.missing_dates]
-
-        if check_only:
+        try:
             if force:
-                summary.missing_dates = [value.isoformat() for value in target_dates]
+                target_dates = iter_dates(start_date, end_date)
+            else:
+                missing = self.coverage_loader(start_date, end_date)
+                summary.missing_dates = missing.missing_dates
+                target_dates = [date.fromisoformat(value) for value in missing.missing_dates]
+
+            if check_only:
+                if force:
+                    summary.missing_dates = [value.isoformat() for value in target_dates]
+                return summary
+
+            if not target_dates:
+                return summary
+
+            for target_chunk in chunk_dates(target_dates, fetch_chunk_days):
+                available_dates = provider.available_dates(set(target_chunk))
+                rows_by_date = provider.fetch_rows_by_date(available_dates) if available_dates else {}
+
+                for target_date in target_chunk:
+                    try:
+                        date_summary = self.window_sync_service.sync_date(
+                            target_date=target_date,
+                            provider=provider,
+                            rows=rows_by_date.get(target_date, []),
+                            source_available=target_date in available_dates,
+                            dry_run=dry_run,
+                            force=force,
+                        )
+                    except Exception as exc:
+                        date_summary = DateSyncSummary(
+                            dataset_name=self.dataset_name,
+                            job_name=self.window_sync_service.job_name,
+                            target_date=target_date.isoformat(),
+                            source_provider=provider.provider_name,
+                            dry_run=dry_run,
+                            status="failed",
+                            source_available=target_date in available_dates,
+                            error_message=str(exc),
+                        )
+                        self.logger("ERROR", f"[{self.dataset_name}] failed on {target_date.isoformat()}: {exc}")
+                    summary.synced_dates.append(date_summary)
             return summary
-
-        if not target_dates:
-            return summary
-
-        available_dates = provider.available_dates(set(target_dates))
-        rows_by_date = provider.fetch_rows_by_date(available_dates) if available_dates else {}
-
-        for target_date in target_dates:
-            try:
-                date_summary = self.window_sync_service.sync_date(
-                    target_date=target_date,
-                    provider=provider,
-                    rows=rows_by_date.get(target_date, []),
-                    source_available=target_date in available_dates,
-                    dry_run=dry_run,
-                    force=force,
-                )
-            except Exception as exc:
-                date_summary = DateSyncSummary(
-                    dataset_name=self.dataset_name,
-                    job_name=self.window_sync_service.job_name,
-                    target_date=target_date.isoformat(),
-                    source_provider=provider.provider_name,
-                    dry_run=dry_run,
-                    status="failed",
-                    source_available=target_date in available_dates,
-                    error_message=str(exc),
-                )
-                self.logger("ERROR", f"[{self.dataset_name}] failed on {target_date.isoformat()}: {exc}")
-            summary.synced_dates.append(date_summary)
-        return summary
+        finally:
+            if hasattr(provider, "close"):
+                provider.close()
 
 
 class BusinessMobileExtractionService:
@@ -1024,7 +1077,7 @@ class DailyIncrementalSyncService:
                 password=password,
                 logger=self.logger,
             )
-            parking_provider = resolve_parking_provider(parking_provider_name)
+            parking_provider = resolve_parking_provider(parking_provider_name, logger=self.logger)
 
             point_window_sync = WindowSyncService(
                 self.db,

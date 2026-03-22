@@ -12,6 +12,7 @@ interface SidebarProps {
     collapsed: boolean;
     onToggleCollapse: () => void;
     items: SidebarNavItem[];
+    bottomItems?: SidebarNavItem[];
 }
 
 function ExportIcon() {
@@ -30,10 +31,66 @@ function ExportIcon() {
 function AdminIcon() {
     return (
         <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-            <path d="M4 7.5h16" strokeLinecap="round" strokeLinejoin="round" />
-            <path d="M7 4h10v16H7z" strokeLinecap="round" strokeLinejoin="round" />
-            <path d="M10 11h4" strokeLinecap="round" strokeLinejoin="round" />
-            <path d="M10 15h4" strokeLinecap="round" strokeLinejoin="round" />
+            <path
+                d="M10.2 4.55a1 1 0 011.6 0l.77 1.03a1 1 0 001.08.34l1.24-.37a1 1 0 011.13.47l.62 1.14a1 1 0 00.9.53h1.28a1 1 0 01.8 1.38l-.52 1.17a1 1 0 00.14 1.12l.82 1a1 1 0 010 1.28l-.82 1a1 1 0 00-.14 1.12l.52 1.17a1 1 0 01-.8 1.38h-1.28a1 1 0 00-.9.53l-.62 1.14a1 1 0 01-1.13.47l-1.24-.37a1 1 0 00-1.08.34l-.77 1.03a1 1 0 01-1.6 0l-.77-1.03a1 1 0 00-1.08-.34l-1.24.37a1 1 0 01-1.13-.47l-.62-1.14a1 1 0 00-.9-.53H4.96a1 1 0 01-.8-1.38l.52-1.17a1 1 0 00-.14-1.12l-.82-1a1 1 0 010-1.28l.82-1a1 1 0 00.14-1.12l-.52-1.17a1 1 0 01.8-1.38h1.28a1 1 0 00.9-.53l.62-1.14a1 1 0 011.13-.47l1.24.37a1 1 0 001.08-.34l.77-1.03z"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+            />
+            <circle cx="12" cy="12" r="3" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+    );
+}
+
+function ToolsIcon() {
+    return (
+        <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+            <path d="M14 6l4 4" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M5 19l6.5-6.5" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M11.5 12.5l2-2a3 3 0 114.24 4.24l-2 2" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M8.5 15.5l-1 1a2 2 0 01-2.83-2.83l1-1" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+    );
+}
+
+function BiIcon() {
+    return (
+        <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+            <path d="M5 19V9" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M12 19V5" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M19 19v-7" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M4 19h16" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+    );
+}
+
+function ReconciliationIcon() {
+    return (
+        <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+            <path d="M5 12h14" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M8 8h8" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M8 16h8" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M4 5h16v14H4z" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+    );
+}
+
+function LayoutIcon() {
+    return (
+        <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+            <path d="M4 5h16v14H4z" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M9 5v14" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M15 12h5" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M4 10h5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+    );
+}
+
+function MessageIcon() {
+    return (
+        <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+            <path d="M6 18l-2 2V6a2 2 0 012-2h12a2 2 0 012 2v10a2 2 0 01-2 2H6z" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M8 8h8" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M8 12h6" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
     );
 }
@@ -85,18 +142,14 @@ function NavButton({
             >
                 {icon}
             </div>
-            {!collapsed && (
-                <div className="min-w-0">
-                    <div className="text-[1rem] font-medium tracking-[-0.02em]">{label}</div>
-                </div>
-            )}
+            {!collapsed ? <div className="text-[1rem] font-medium tracking-[-0.02em]">{label}</div> : null}
         </button>
     );
 }
 
-export { AdminIcon, ExportIcon };
+export { AdminIcon, BiIcon, ExportIcon, LayoutIcon, MessageIcon, ReconciliationIcon, ToolsIcon };
 
-export default function Sidebar({ collapsed, onToggleCollapse, items }: SidebarProps) {
+export default function Sidebar({ collapsed, onToggleCollapse, items, bottomItems = [] }: SidebarProps) {
     return (
         <aside
             className={[
@@ -106,18 +159,7 @@ export default function Sidebar({ collapsed, onToggleCollapse, items }: SidebarP
         >
             <div className="pointer-events-none absolute inset-y-0 right-0 w-px bg-white/80" />
 
-            <div className="flex items-center justify-between px-5 pb-4 pt-5">
-                {!collapsed && (
-                    <div>
-                        <p className="text-[0.68rem] font-medium uppercase tracking-[0.24em] text-slate-400">
-                            Smart Workbench
-                        </p>
-                        <div className="mt-2 text-[1.35rem] font-semibold tracking-[-0.04em] text-slate-950">
-                            {"\u63a7\u5236\u53f0"}
-                        </div>
-                    </div>
-                )}
-
+            <div className="flex justify-end px-5 pb-4 pt-5">
                 <button
                     className={[
                         "inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-[1rem] border border-white/80 bg-white/78 text-slate-500 shadow-[0_12px_28px_rgba(76,108,180,0.08)] transition hover:text-slate-900",
@@ -130,39 +172,37 @@ export default function Sidebar({ collapsed, onToggleCollapse, items }: SidebarP
                 </button>
             </div>
 
-            <div className={["space-y-3 px-4", collapsed ? "pt-4" : "pt-2"].join(" ")}>
-                {items.map((item) => (
-                    <NavButton
-                        key={item.key}
-                        active={item.active}
-                        collapsed={collapsed}
-                        icon={item.icon}
-                        label={item.label}
-                        onClick={item.onClick}
-                    />
-                ))}
-            </div>
-
-            <div className="mt-auto px-4 pb-5">
-                <div
-                    className={[
-                        "rounded-[1.4rem] border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.82),rgba(245,248,255,0.76))] shadow-[0_14px_28px_rgba(76,108,180,0.07)] transition duration-300",
-                        collapsed ? "px-0 py-3 text-center" : "px-4 py-4",
-                    ].join(" ")}
-                >
-                    {collapsed ? (
-                        <div className="mx-auto h-2.5 w-2.5 rounded-full bg-emerald-400" />
-                    ) : (
-                        <>
-                            <div className="text-[0.7rem] font-medium uppercase tracking-[0.2em] text-slate-400">
-                                Program
-                            </div>
-                            <div className="mt-2 text-sm font-medium text-slate-900">
-                                {"\u4f1a\u5458\u7cfb\u7edf\u7ba1\u7406"}
-                            </div>
-                        </>
-                    )}
+            <div className="flex min-h-0 flex-1 flex-col">
+                <div className={["space-y-3 px-4", collapsed ? "pt-4" : "pt-2"].join(" ")}>
+                    {items.map((item) => (
+                        <NavButton
+                            key={item.key}
+                            active={item.active}
+                            collapsed={collapsed}
+                            icon={item.icon}
+                            label={item.label}
+                            onClick={item.onClick}
+                        />
+                    ))}
                 </div>
+
+                {bottomItems.length ? (
+                    <div className={["mt-auto px-4 pb-5", collapsed ? "pt-4" : "pt-6"].join(" ")}>
+                        <div className="h-px bg-gradient-to-r from-transparent via-slate-200/80 to-transparent" />
+                        <div className="pt-4">
+                            {bottomItems.map((item) => (
+                                <NavButton
+                                    key={item.key}
+                                    active={item.active}
+                                    collapsed={collapsed}
+                                    icon={item.icon}
+                                    label={item.label}
+                                    onClick={item.onClick}
+                                />
+                            ))}
+                        </div>
+                    </div>
+                ) : null}
             </div>
         </aside>
     );

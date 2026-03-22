@@ -12,10 +12,38 @@ data/*.sqlite*
 
 .env
 .env.*
+.backup.env
 logs/
+exports/
+.codex_tmp_backup
+.codex_backups/
+*.codex_tmp
+tmp_*
+tmp_*/
+*.har
+*.exe
+*.db
+*.sqlite*
+*_extracted/
+FastAPI.rar
+windows_ppt_worker.rar
+pyinstxtractor.py
+TEST.txt
+1 to 3 ppt.py
+data/cache/
+data/tool_cache/
+data/locks/
+data/reconciliation_exports/
+data/reconciliation_uploads/
+backups/
+railinliKL.db
+traffic_data.db
 
 ppxxrr
 ppxxrr.pub
 
 *.rar
 ls
+csv/*.csv
+data/*.tar.gz
+data/member_sync_result*.csv

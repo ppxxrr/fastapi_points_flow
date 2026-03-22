@@ -9,6 +9,7 @@ from typing import Any
 from uuid import uuid4
 
 from app.services.points_flow_service import ExportJobResult, PointsFlowExportService
+from app.utils.error_text import normalize_error_text
 
 
 POINTS_FLOW_TASK_TYPE = "points_flow_export"
@@ -191,5 +192,6 @@ class TaskManager:
                 f"Export completed: {result.output_file.name}, rows={result.result_count}",
             )
         except Exception as exc:
-            self._mark_failed(task, str(exc))
-            self.append_log(task, "ERROR", f"Task failed: {exc}")
+            error_text = normalize_error_text(exc)
+            self._mark_failed(task, error_text)
+            self.append_log(task, "ERROR", f"Task failed: {error_text}")

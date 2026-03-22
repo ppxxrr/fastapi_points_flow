@@ -45,7 +45,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--provider",
         default=DEFAULT_PARKING_PROVIDER,
-        choices=["csv"],
+        choices=["auto", "api", "csv"],
         help=f"Parking source provider. Default: {DEFAULT_PARKING_PROVIDER}",
     )
     return parser
@@ -97,7 +97,7 @@ def main() -> None:
                 window_sync_service=window_sync_service,
                 logger=log_callback,
             )
-            provider = resolve_parking_provider(args.provider)
+            provider = resolve_parking_provider(args.provider, logger=log_callback)
             summary = service.backfill_missing_dates(
                 provider=provider,
                 start_date=start_date,

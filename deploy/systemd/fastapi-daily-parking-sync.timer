@@ -1,0 +1,10 @@
+[Unit]
+Description=Run Daily Parking Incremental Sync at 03:00
+
+[Timer]
+OnCalendar=*-*-* 03:00:00
+Persistent=true
+Unit=fastapi-daily-parking-sync.service
+
+[Install]
+WantedBy=timers.target

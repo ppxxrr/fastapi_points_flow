@@ -14,8 +14,10 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session
 
 from app.db.config import ROOT_DIR, get_database_settings
+from app.models.legacy_flow import RailinliProbeDailyFlow, TrafficNodeDailyFlow
 from app.models.member import MemberAccount, MemberProfile
 from app.models.parking import ParkingRecord
+from app.models.parking_trade import ParkingTradeRecord
 from app.models.point_flow import MemberPointFlow
 from app.models.sync import SyncTaskLog
 from app.models.sync_job import SyncJobState
@@ -23,7 +25,14 @@ from app.services.import_utils import clean_text, load_csv_header
 from app.services.incremental_sync_service import (
     DEFAULT_PARKING_SOURCE_DIR,
     DEFAULT_POINT_FLOW_SOURCE_DIR,
+    PARKING_JOB_NAME,
     yesterday,
+)
+from app.services.parking_daily_sync_service import PARKING_DAILY_JOB_NAME, parking_target_date
+from app.services.parking_trade_daily_sync_service import (
+    PARKING_TRADE_DAILY_JOB_NAME,
+    PARKING_TRADE_JOB_NAME,
+    parking_trade_target_date,
 )
 from app.services.member_point_flow_service import PARKING_HEADER_FIELDS
 
@@ -110,6 +119,8 @@ class AdminOverviewService:
                 "recent_jobs": self._load_recent_jobs(limit=15),
                 "recent_failures": self._load_recent_failures(limit=10),
             },
+            "parking_sync": self._build_parking_sync_summary(),
+            "parking_trade_sync": self._build_parking_trade_sync_summary(),
             "parking_integrity": {
                 "severity": "warning" if parking_risk_flags else "info",
                 "integrity_pending": True,
@@ -126,6 +137,9 @@ class AdminOverviewService:
             "member_account": int(self.db.scalar(select(func.count()).select_from(MemberAccount)) or 0),
             "member_point_flow": int(self.db.scalar(select(func.count()).select_from(MemberPointFlow)) or 0),
             "parking_record": int(self.db.scalar(select(func.count()).select_from(ParkingRecord)) or 0),
+            "parking_trade_record": int(self.db.scalar(select(func.count()).select_from(ParkingTradeRecord)) or 0),
+            "traffic_node_daily_flow": int(self.db.scalar(select(func.count()).select_from(TrafficNodeDailyFlow)) or 0),
+            "railinli_probe_daily_flow": int(self.db.scalar(select(func.count()).select_from(RailinliProbeDailyFlow)) or 0),
             "sync_job_state": int(self.db.scalar(select(func.count()).select_from(SyncJobState)) or 0),
             "sync_task_log": int(self.db.scalar(select(func.count()).select_from(SyncTaskLog)) or 0),
         }
@@ -147,6 +161,19 @@ class AdminOverviewService:
             for row in rows
         ]
 
+    def _serialize_job(self, row: SyncJobState | None) -> dict[str, Any] | None:
+        if row is None:
+            return None
+        return {
+            "id": row.id,
+            "job_name": row.job_name,
+            "job_date": row.job_date.isoformat(),
+            "status": row.status,
+            "retry_count": row.retry_count,
+            "updated_at": _format_datetime(row.updated_at),
+            "last_error": _truncate(row.last_error, limit=320),
+        }
+
     def _load_recent_failures(self, *, limit: int) -> list[dict[str, Any]]:
         rows = self.db.scalars(
             select(SyncTaskLog)
@@ -166,6 +193,111 @@ class AdminOverviewService:
             }
             for row in rows
         ]
+
+    def _load_recent_parking_logs(self, *, limit: int) -> list[dict[str, Any]]:
+        rows = self.db.scalars(
+            select(SyncTaskLog)
+            .where(SyncTaskLog.module_name.in_(["parking_record", "parking_incremental_sync"]))
+            .order_by(SyncTaskLog.started_at.desc(), SyncTaskLog.id.desc())
+            .limit(limit)
+        ).all()
+        return [
+            {
+                "id": row.id,
+                "module_name": row.module_name,
+                "action": row.action,
+                "status": row.status,
+                "target_value": row.target_value,
+                "error_message": _truncate(row.error_message, limit=320),
+                "started_at": _format_datetime(row.started_at),
+                "finished_at": _format_datetime(row.finished_at),
+            }
+            for row in rows
+        ]
+
+    def _build_parking_sync_summary(self) -> dict[str, Any]:
+        target_date = parking_target_date()
+        target_job = self.db.scalar(
+            select(SyncJobState).where(
+                SyncJobState.job_name == PARKING_JOB_NAME,
+                SyncJobState.job_date == target_date,
+            )
+        )
+        latest_business_job = self.db.scalar(
+            select(SyncJobState)
+            .where(SyncJobState.job_name == PARKING_JOB_NAME)
+            .order_by(SyncJobState.job_date.desc(), SyncJobState.updated_at.desc(), SyncJobState.id.desc())
+            .limit(1)
+        )
+        latest_wrapper_job = self.db.scalar(
+            select(SyncJobState)
+            .where(SyncJobState.job_name == PARKING_DAILY_JOB_NAME)
+            .order_by(SyncJobState.job_date.desc(), SyncJobState.updated_at.desc(), SyncJobState.id.desc())
+            .limit(1)
+        )
+        attention_required = any(
+            row is not None and row.status == "failed"
+            for row in (target_job, latest_business_job, latest_wrapper_job)
+        )
+        return {
+            "target_job_date": target_date.isoformat(),
+            "target_job": self._serialize_job(target_job),
+            "latest_business_job": self._serialize_job(latest_business_job),
+            "latest_wrapper_job": self._serialize_job(latest_wrapper_job),
+            "recent_logs": self._load_recent_parking_logs(limit=8),
+            "attention_required": attention_required,
+        }
+
+    def _build_parking_trade_sync_summary(self) -> dict[str, Any]:
+        target_date = parking_trade_target_date()
+        target_job = self.db.scalar(
+            select(SyncJobState).where(
+                SyncJobState.job_name == PARKING_TRADE_JOB_NAME,
+                SyncJobState.job_date == target_date,
+            )
+        )
+        latest_business_job = self.db.scalar(
+            select(SyncJobState)
+            .where(SyncJobState.job_name == PARKING_TRADE_JOB_NAME)
+            .order_by(SyncJobState.job_date.desc(), SyncJobState.updated_at.desc(), SyncJobState.id.desc())
+            .limit(1)
+        )
+        latest_wrapper_job = self.db.scalar(
+            select(SyncJobState)
+            .where(SyncJobState.job_name == PARKING_TRADE_DAILY_JOB_NAME)
+            .order_by(SyncJobState.job_date.desc(), SyncJobState.updated_at.desc(), SyncJobState.id.desc())
+            .limit(1)
+        )
+        recent_logs = self.db.scalars(
+            select(SyncTaskLog)
+            .where(SyncTaskLog.module_name.in_(["parking_trade_record", "parking_trade_incremental_sync"]))
+            .order_by(SyncTaskLog.started_at.desc(), SyncTaskLog.id.desc())
+            .limit(8)
+        ).all()
+        attention_required = any(
+            row is not None and row.status == "failed"
+            for row in (target_job, latest_business_job, latest_wrapper_job)
+        )
+        return {
+            "target_job_date": target_date.isoformat(),
+            "target_job": self._serialize_job(target_job),
+            "latest_business_job": self._serialize_job(latest_business_job),
+            "latest_wrapper_job": self._serialize_job(latest_wrapper_job),
+            "recent_logs": [
+                {
+                    "id": row.id,
+                    "module_name": row.module_name,
+                    "action": row.action,
+                    "status": row.status,
+                    "target_value": row.target_value,
+                    "error_message": _truncate(row.error_message, limit=320),
+                    "started_at": _format_datetime(row.started_at),
+                    "finished_at": _format_datetime(row.finished_at),
+                }
+                for row in recent_logs
+            ],
+            "attention_required": attention_required,
+        }
 
     def _build_parking_table_summary(self) -> dict[str, Any]:
         min_entry = self.db.scalar(select(func.min(ParkingRecord.entry_time)))

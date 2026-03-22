@@ -1,0 +1,23 @@
+[Unit]
+Description=FastAPI 4pyun Chrome Keepalive
+After=network.target mariadb.service fastapi-4pyun-browser.service
+Wants=network-online.target fastapi-4pyun-browser.service
+
+[Service]
+Type=simple
+User=fastapi
+Group=fastapi
+WorkingDirectory=/opt/fastapi_points_flow
+EnvironmentFile=/opt/fastapi_points_flow/.env
+Environment=PYTHONUNBUFFERED=1
+ExecStartPre=/usr/bin/test -f /opt/fastapi_points_flow/.env
+ExecStartPre=/bin/mkdir -p /opt/fastapi_points_flow/logs /opt/fastapi_points_flow/data/scheduler
+ExecStart=/opt/fastapi_points_flow/.venv/bin/python scripts/run_4pyun_keepalive.py
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

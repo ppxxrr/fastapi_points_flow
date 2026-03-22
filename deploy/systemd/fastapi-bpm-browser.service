@@ -1,0 +1,23 @@
+[Unit]
+Description=FastAPI Managed BPM Chrome Browser
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=fastapi
+Group=fastapi
+WorkingDirectory=/opt/fastapi_points_flow
+EnvironmentFile=/opt/fastapi_points_flow/.env
+Environment=PYTHONUNBUFFERED=1
+ExecStartPre=/usr/bin/test -f /opt/fastapi_points_flow/.env
+ExecStartPre=/bin/mkdir -p /opt/fastapi_points_flow/logs /opt/fastapi_points_flow/data/scheduler
+ExecStart=/opt/fastapi_points_flow/.venv/bin/python scripts/run_bpm_browser.py
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

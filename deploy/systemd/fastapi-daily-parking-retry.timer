@@ -1,0 +1,11 @@
+[Unit]
+Description=Retry Pending Parking Incremental Sync Every 30 Minutes
+
+[Timer]
+OnCalendar=*-*-* *:00:00
+OnCalendar=*-*-* *:30:00
+Persistent=true
+Unit=fastapi-daily-parking-retry.service
+
+[Install]
+WantedBy=timers.target

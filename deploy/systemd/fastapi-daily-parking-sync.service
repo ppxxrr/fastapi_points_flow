@@ -1,0 +1,18 @@
+[Unit]
+Description=FastAPI Daily Parking Incremental Sync
+After=network.target mariadb.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=fastapi
+Group=fastapi
+WorkingDirectory=/opt/fastapi_points_flow
+EnvironmentFile=/opt/fastapi_points_flow/.env
+Environment=PYTHONUNBUFFERED=1
+ExecStartPre=/usr/bin/test -f /opt/fastapi_points_flow/.env
+ExecStartPre=/bin/mkdir -p /opt/fastapi_points_flow/logs /opt/fastapi_points_flow/data/scheduler
+ExecStart=/opt/fastapi_points_flow/.venv/bin/python scripts/run_daily_parking_incremental_sync.py
+StandardOutput=journal
+StandardError=journal
+NoNewPrivileges=true

@@ -1,0 +1,11 @@
+[Unit]
+Description=FastAPI daily traffic-data API sync
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=fastapi
+WorkingDirectory=/opt/fastapi_points_flow
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/fastapi_points_flow/.venv/bin/python /opt/fastapi_points_flow/scripts/run_daily_traffic_data_sync.py

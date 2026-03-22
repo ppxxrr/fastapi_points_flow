@@ -1,4 +1,6 @@
 const API_BASE = normalizeBaseUrl(readEnv("VITE_API_BASE_URL"));
+const HTML_RESPONSE_RE = /^\s*(<!doctype html|<html[\s>]|<head[\s>]|<body[\s>])/i;
+const MAX_ERROR_TEXT_LENGTH = 240;
 
 export class ApiError extends Error {
     status: number;
@@ -41,15 +43,24 @@ export async function apiRequest<T>(path: string, init: RequestInit = {}) {
         headers.set("Accept", "application/json");
     }
 
-    const response = await fetch(buildApiUrl(path), {
-        ...init,
-        headers,
-        credentials: init.credentials ?? "include",
-    });
+    let response: Response;
+    try {
+        response = await fetch(buildApiUrl(path), {
+            ...init,
+            headers,
+            credentials: init.credentials ?? "include",
+        });
+    } catch (error) {
+        if (error instanceof Error) {
+            throw new Error("网络请求失败，请检查网络连接后重试。");
+        }
+        throw error;
+    }
+
     const payload = await parseResponse(response);
 
     if (!response.ok) {
-        const detail = extractDetail(payload) || response.statusText || "请求失败";
+        const detail = buildErrorDetail(response.status, response.statusText, payload);
         throw new ApiError(detail, response.status, detail, payload);
     }
 
@@ -90,22 +101,22 @@ function extractDetail(payload: unknown) {
     }
 
     if (typeof payload === "string") {
-        return payload;
+        return sanitizeErrorText(payload);
     }
 
     if (typeof payload === "object" && payload !== null && "detail" in payload) {
         const detail = (payload as { detail?: unknown }).detail;
         if (typeof detail === "string") {
-            return detail;
+            return sanitizeErrorText(detail);
         }
         if (Array.isArray(detail)) {
             return detail
                 .map((item) => {
                     if (typeof item === "string") {
-                        return item;
+                        return sanitizeErrorText(item);
                     }
                     if (item && typeof item === "object" && "msg" in item) {
-                        return String((item as { msg?: unknown }).msg || "");
+                        return sanitizeErrorText(String((item as { msg?: unknown }).msg || ""));
                     }
                     return "";
                 })
@@ -115,4 +126,48 @@ function extractDetail(payload: unknown) {
     }
 
     return "";
+}
+
+function sanitizeErrorText(value: string) {
+    const text = value.replace(/\s+/g, " ").trim();
+    if (!text || HTML_RESPONSE_RE.test(text)) {
+        return "";
+    }
+    if (text.length <= MAX_ERROR_TEXT_LENGTH) {
+        return text;
+    }
+    return `${text.slice(0, MAX_ERROR_TEXT_LENGTH).trim()}...`;
+}
+
+function buildErrorDetail(status: number, statusText: string, payload: unknown) {
+    const detail = extractDetail(payload);
+    if (detail) {
+        return detail;
+    }
+    return buildStatusMessage(status, statusText);
+}
+
+function buildStatusMessage(status: number, statusText: string) {
+    switch (status) {
+        case 401:
+            return "登录已过期，请重新登录。";
+        case 403:
+            return "没有权限执行该操作。";
+        case 404:
+            return "请求的资源不存在。";
+        case 408:
+            return "请求超时，请稍后重试。";
+        case 429:
+            return "请求过于频繁，请稍后再试。";
+        case 500:
+            return "服务器处理失败，请稍后重试。";
+        case 502:
+            return "网关异常（502），请稍后重试。";
+        case 503:
+            return "服务暂时不可用（503），请稍后重试。";
+        case 504:
+            return "服务响应超时（504），请稍后重试。";
+        default:
+            return statusText ? `请求失败（${status} ${statusText}）。` : `请求失败（${status}）。`;
+    }
 }

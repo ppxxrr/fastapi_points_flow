@@ -1,0 +1,11 @@
+[Unit]
+Description=Retry ICSP Direct Fill Every 30 Minutes
+
+[Timer]
+OnCalendar=*-*-* *:15:00
+OnCalendar=*-*-* *:45:00
+Persistent=true
+Unit=fastapi-daily-icsp-fill-retry.service
+
+[Install]
+WantedBy=timers.target

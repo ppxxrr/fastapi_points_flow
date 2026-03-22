@@ -1,6 +1,5 @@
 import { useAuth } from "./auth/AuthContext";
 import DashboardPage from "./pages/DashboardPage";
-import LoginPage from "./pages/LoginPage";
 
 export default function App() {
     const { isBootstrapping, user, logout } = useAuth();
@@ -20,7 +19,7 @@ export default function App() {
 
     return (
         <div className="min-h-screen bg-[#f6f8fd] text-slate-950">
-            {user ? <DashboardPage currentUser={user} onLogout={logout} /> : <LoginPage />}
+            <DashboardPage currentUser={user} onLogout={logout} />
         </div>
     );
 }

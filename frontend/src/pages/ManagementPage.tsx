@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 
-import { getAdminOverview, type AdminOverviewResponse } from "../api/admin";
+import {
+    getAdminOverview,
+    runParkingIncrementalSync,
+    runParkingTradeIncrementalSync,
+    type AdminOverviewResponse,
+} from "../api/admin";
 import { getApiErrorMessage, isUnauthorizedError } from "../api/client";
 
 interface ManagementPageProps {
@@ -84,6 +89,10 @@ export default function ManagementPage({ onLogout }: ManagementPageProps) {
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [error, setError] = useState("");
+    const [manualRunning, setManualRunning] = useState(false);
+    const [manualMessage, setManualMessage] = useState("");
+    const [manualTradeRunning, setManualTradeRunning] = useState(false);
+    const [manualTradeMessage, setManualTradeMessage] = useState("");
 
     async function loadOverview(showRefreshing = false) {
         if (showRefreshing) {
@@ -122,7 +131,7 @@ export default function ManagementPage({ onLogout }: ManagementPageProps) {
             if (active) {
                 void loadOverview(true);
             }
-        }, 60000);
+        }, 15000);
 
         return () => {
             active = false;
@@ -134,6 +143,42 @@ export default function ManagementPage({ onLogout }: ManagementPageProps) {
     const parkingRiskFlags = overview?.parking_integrity.risk_flags || [];
     const csvSource = overview?.parking_integrity.csv_source;
     const parkingSummary = overview?.parking_integrity.table_summary;
+    const parkingSync = overview?.parking_sync;
+    const parkingTradeSync = overview?.parking_trade_sync;
+
+    async function handleManualParkingSync() {
+        setManualRunning(true);
+        try {
+            const response = await runParkingIncrementalSync();
+            setManualMessage(`已触发 ${response.job_date} 停车增量更新`);
+            await loadOverview(true);
+        } catch (requestError) {
+            if (isUnauthorizedError(requestError)) {
+                await onLogout();
+                return;
+            }
+            setManualMessage(getApiErrorMessage(requestError));
+        } finally {
+            setManualRunning(false);
+        }
+    }
+
+    async function handleManualParkingTradeSync() {
+        setManualTradeRunning(true);
+        try {
+            const response = await runParkingTradeIncrementalSync();
+            setManualTradeMessage(`已触发 ${response.job_date} 停车交易明细更新`);
+            await loadOverview(true);
+        } catch (requestError) {
+            if (isUnauthorizedError(requestError)) {
+                await onLogout();
+                return;
+            }
+            setManualTradeMessage(getApiErrorMessage(requestError));
+        } finally {
+            setManualTradeRunning(false);
+        }
+    }
 
     const serverCards = useMemo(
         () =>
@@ -267,9 +312,146 @@ export default function ManagementPage({ onLogout }: ManagementPageProps) {
                     <MiniMetric label="member_account" value={formatCount(tableCounts?.member_account)} />
                     <MiniMetric label="member_point_flow" value={formatCount(tableCounts?.member_point_flow)} />
                     <MiniMetric label="parking_record" value={formatCount(tableCounts?.parking_record)} />
+                    <MiniMetric label="parking_trade_record" value={formatCount(tableCounts?.parking_trade_record)} />
                     <MiniMetric label="sync_job_state" value={formatCount(tableCounts?.sync_job_state)} />
                     <MiniMetric label="sync_task_log" value={formatCount(tableCounts?.sync_task_log)} />
                 </div>
+            </SectionCard>
+
+            <SectionCard
+                eyebrow="Parking Sync"
+                title="\u505c\u8f66\u573a\u589e\u91cf\u66f4\u65b0"
+                right={
+                    <button
+                        className="inline-flex h-11 items-center justify-center rounded-[1.05rem] bg-[linear-gradient(135deg,#2563eb,#1d4ed8)] px-4 text-sm font-medium text-white shadow-[0_16px_32px_rgba(37,99,235,0.22)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
+                        disabled={manualRunning}
+                        onClick={() => void handleManualParkingSync()}
+                        type="button"
+                    >
+                        {manualRunning ? "\u6267\u884c\u4e2d..." : "\u624b\u52a8\u66f4\u65b0"}
+                    </button>
+                }
+            >
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    <MiniMetric
+                        label="\u76ee\u6807\u65e5\u671f"
+                        value={parkingSync?.target_job_date || "-"}
+                        note="\u6bcf\u5929 03:00 \u9ed8\u8ba4\u66f4\u65b0\u524d\u65e5\u505c\u8f66\u6570\u636e"
+                    />
+                    <MiniMetric
+                        label="\u6700\u65b0\u72b6\u6001"
+                        value={parkingSync?.target_job?.status || parkingSync?.latest_business_job?.status || "-"}
+                        note={parkingSync?.target_job?.updated_at ? formatDateTime(parkingSync.target_job.updated_at) : "\u6682\u65e0\u6267\u884c\u8bb0\u5f55"}
+                    />
+                    <MiniMetric
+                        label="\u91cd\u8bd5\u6b21\u6570"
+                        value={String(parkingSync?.target_job?.retry_count || parkingSync?.latest_business_job?.retry_count || 0)}
+                        note={parkingSync?.attention_required ? "\u5f53\u524d\u9700\u8981\u5173\u6ce8" : "\u5f53\u524d\u65e0\u91cd\u70b9\u5f02\u5e38"}
+                    />
+                    <MiniMetric
+                        label="\u5916\u5c42\u4efb\u52a1"
+                        value={parkingSync?.latest_wrapper_job?.status || "-"}
+                        note={parkingSync?.latest_wrapper_job?.updated_at ? formatDateTime(parkingSync.latest_wrapper_job.updated_at) : "-"}
+                    />
+                </div>
+
+                {manualMessage ? (
+                    <div className="mt-4 rounded-[1.2rem] border border-slate-200/80 bg-white/80 px-4 py-3 text-sm text-slate-700">
+                        {manualMessage}
+                    </div>
+                ) : null}
+
+                {parkingSync?.target_job?.last_error ? (
+                    <div className="mt-4 rounded-[1.2rem] border border-rose-200 bg-rose-50/90 px-4 py-3 text-sm leading-6 text-rose-700">
+                        {parkingSync.target_job.last_error}
+                    </div>
+                ) : null}
+
+                <div className="mt-5 overflow-hidden rounded-[1.45rem] border border-slate-200/90 bg-white/88">
+                    <div className="grid grid-cols-[128px_160px_110px_140px_1fr_140px] gap-3 border-b border-slate-200/90 px-4 py-3 text-xs font-medium uppercase tracking-[0.16em] text-slate-400">
+                        <div>module</div>
+                        <div>action</div>
+                        <div>status</div>
+                        <div>target</div>
+                        <div>error</div>
+                        <div>finished_at</div>
+                    </div>
+                    <div className="max-h-[18rem] overflow-y-auto">
+                        {(parkingSync?.recent_logs || []).length === 0 ? (
+                            <div className="px-4 py-8 text-center text-sm text-slate-500">
+                                {"\u6682\u65e0\u505c\u8f66\u589e\u91cf\u4efb\u52a1\u65e5\u5fd7"}
+                            </div>
+                        ) : (
+                            (parkingSync?.recent_logs || []).map((item) => (
+                                <div
+                                    key={item.id}
+                                    className="grid grid-cols-[128px_160px_110px_140px_1fr_140px] gap-3 border-b border-slate-100/90 px-4 py-3 text-sm last:border-b-0"
+                                >
+                                    <div className="font-medium text-slate-900">{item.module_name}</div>
+                                    <div className="text-slate-600">{item.action}</div>
+                                    <div>
+                                        <span className={["rounded-full px-2.5 py-1 text-[0.72rem] font-medium", toneClass(item.status)].join(" ")}>
+                                            {item.status}
+                                        </span>
+                                    </div>
+                                    <div className="break-all text-slate-500">{item.target_value || "-"}</div>
+                                    <div className="leading-6 text-slate-600">{item.error_message || "-"}</div>
+                                    <div className="text-slate-500">{formatDateTime(item.finished_at || item.started_at)}</div>
+                                </div>
+                            ))
+                        )}
+                    </div>
+                </div>
+            </SectionCard>
+
+            <SectionCard
+                eyebrow="Parking Trade Sync"
+                title="停车交易明细增量更新"
+                right={
+                    <button
+                        className="inline-flex h-11 items-center justify-center rounded-[1.05rem] bg-[linear-gradient(135deg,#2563eb,#1d4ed8)] px-4 text-sm font-medium text-white shadow-[0_16px_32px_rgba(37,99,235,0.22)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
+                        disabled={manualTradeRunning}
+                        onClick={() => void handleManualParkingTradeSync()}
+                        type="button"
+                    >
+                        {manualTradeRunning ? "执行中..." : "手动更新"}
+                    </button>
+                }
+            >
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    <MiniMetric
+                        label="目标日期"
+                        value={parkingTradeSync?.target_job_date || "-"}
+                        note="每天 03:10 默认更新前一天停车交易明细"
+                    />
+                    <MiniMetric
+                        label="最新状态"
+                        value={parkingTradeSync?.target_job?.status || parkingTradeSync?.latest_business_job?.status || "-"}
+                        note={parkingTradeSync?.target_job?.updated_at ? formatDateTime(parkingTradeSync.target_job.updated_at) : "暂无执行记录"}
+                    />
+                    <MiniMetric
+                        label="重试次数"
+                        value={String(parkingTradeSync?.target_job?.retry_count || parkingTradeSync?.latest_business_job?.retry_count || 0)}
+                        note={parkingTradeSync?.attention_required ? "当前需要关注" : "当前无重点异常"}
+                    />
+                    <MiniMetric
+                        label="外层任务"
+                        value={parkingTradeSync?.latest_wrapper_job?.status || "-"}
+                        note={parkingTradeSync?.latest_wrapper_job?.updated_at ? formatDateTime(parkingTradeSync.latest_wrapper_job.updated_at) : "-"}
+                    />
+                </div>
+
+                {manualTradeMessage ? (
+                    <div className="mt-4 rounded-[1.2rem] border border-slate-200/80 bg-white/80 px-4 py-3 text-sm text-slate-700">
+                        {manualTradeMessage}
+                    </div>
+                ) : null}
+
+                {parkingTradeSync?.target_job?.last_error ? (
+                    <div className="mt-4 rounded-[1.2rem] border border-rose-200 bg-rose-50/90 px-4 py-3 text-sm leading-6 text-rose-700">
+                        {parkingTradeSync.target_job.last_error}
+                    </div>
+                ) : null}
             </SectionCard>
 
             <div className="grid gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">

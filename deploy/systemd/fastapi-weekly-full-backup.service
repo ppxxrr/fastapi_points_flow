@@ -1,0 +1,13 @@
+[Unit]
+Description=FastAPI Weekly Full Backup
+After=network-online.target mariadb.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/opt/fastapi_points_flow
+ExecStart=/bin/bash /opt/fastapi_points_flow/scripts/run_full_site_backup.sh
+
+[Install]
+WantedBy=multi-user.target

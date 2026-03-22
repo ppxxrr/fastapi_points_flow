@@ -1,0 +1,10 @@
+[Unit]
+Description=Run FastAPI Weekly Full Backup every Monday at 06:00
+
+[Timer]
+OnCalendar=Mon 06:00
+Persistent=true
+Unit=fastapi-weekly-full-backup.service
+
+[Install]
+WantedBy=timers.target

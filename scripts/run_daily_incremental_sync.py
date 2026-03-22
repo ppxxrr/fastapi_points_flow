@@ -43,7 +43,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--parking-provider",
         default=DEFAULT_PARKING_PROVIDER,
-        choices=["csv"],
+        choices=["auto", "api", "csv"],
         help=f"Parking provider. Default: {DEFAULT_PARKING_PROVIDER}",
     )
     parser.add_argument("--username", default=os.getenv("ICSP_USERNAME", ""), help="ICSP username")
