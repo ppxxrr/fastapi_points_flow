@@ -68,6 +68,14 @@ function isGuestAccessibleView(view: DashboardView) {
     return view === "tools" || view === "message-board";
 }
 
+function parseDashboardView(hash: string): DashboardView | null {
+    const normalized = hash.replace(/^#/, "");
+    if (normalized === "tools" || normalized === "export" || normalized === "management") {
+        return normalized;
+    }
+    return null;
+}
+
 function formatApiTime(value?: string | null) {
     if (!value) {
         return "";
@@ -173,6 +181,36 @@ export default function DashboardPage({ currentUser, onLogout }: DashboardPagePr
                 return;
             }
             if (!currentUser && !isGuestAccessibleView(parsed)) {
+                setActiveView(DEFAULT_GUEST_VIEW);
+                if (window.location.hash !== `#${DEFAULT_GUEST_VIEW}`) {
+                    window.location.hash = DEFAULT_GUEST_VIEW;
+                }
+                return;
+            }
+            setActiveView(parsed);
+        }
+
+        window.addEventListener("hashchange", handleHashChange);
+        return () => window.removeEventListener("hashchange", handleHashChange);
+    }, [currentUser]);
+
+    useEffect(() => {
+        if (currentUser) {
+            setIsLoginDialogOpen(false);
+        }
+    }, [currentUser]);
+
+    useEffect(() => {
+        if (typeof window === "undefined") {
+            return;
+        }
+
+        function handleHashChange() {
+            const parsed = parseDashboardView(window.location.hash);
+            if (!parsed) {
+                return;
+            }
+            if (!currentUser && parsed !== DEFAULT_GUEST_VIEW) {
                 setActiveView(DEFAULT_GUEST_VIEW);
                 if (window.location.hash !== `#${DEFAULT_GUEST_VIEW}`) {
                     window.location.hash = DEFAULT_GUEST_VIEW;
